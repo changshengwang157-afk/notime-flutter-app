@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../core/theme/notime_theme.dart';
-import '../data/mock_data.dart';
 import '../models/connected_app.dart';
 import '../services/app_state.dart';
 import '../widgets/connected_app_header.dart';
@@ -79,6 +78,7 @@ class _AppNotificationsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
     final pageApp = app;
     if (pageApp == null) {
       return Center(
@@ -86,12 +86,10 @@ class _AppNotificationsPage extends StatelessWidget {
       );
     }
 
-    final items = MockData.notificationsForApp(pageApp.id);
+    final items = state.notificationsForApp(pageApp.id);
 
     return RefreshIndicator(
-      onRefresh: () async {
-        await Future<void>.delayed(const Duration(milliseconds: 600));
-      },
+      onRefresh: state.refreshFromApi,
       child: ListView(
         key: ValueKey<String>(pageApp.id),
         padding: const EdgeInsets.all(16),

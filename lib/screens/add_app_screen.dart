@@ -25,8 +25,8 @@ class _AddAppScreenState extends State<AddAppScreen> {
     super.dispose();
   }
 
-  void _connect(String payload) {
-    final result = context.read<AppState>().connectAppFromQr(payload);
+  Future<void> _connect(String payload) async {
+    final result = await context.read<AppState>().connectAppFromQr(payload);
     if (!mounted) return;
 
     final message = switch (result) {

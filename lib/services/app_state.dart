@@ -1,20 +1,36 @@
 import 'package:flutter/foundation.dart';
 
+import '../api/notime_api_client.dart';
+import '../config/api_config.dart';
 import '../data/mock_data.dart';
 import '../models/connected_app.dart';
 import '../models/notification_item.dart';
 import '../models/sent_notification.dart';
 import '../models/user_session.dart';
+import 'push_service.dart';
+import 'session_storage.dart';
 
-/// In-memory app state for the UI prototype (no API / Firebase).
 class AppState extends ChangeNotifier {
+  AppState() {
+    _restoreSession();
+  }
+
+  final SessionStorage _storage = SessionStorage();
+  final NotiMeApiClient _api = NotiMeApiClient();
+  late final PushService _push = PushService(api: _api);
+
   UserSession? _session;
   final List<ConnectedApp> _connectedApps = [];
-  final List<SentNotification> _history = [...MockData.initialHistory];
+  final Map<String, List<NotificationItem>> _notificationsByApp = {};
+  List<SentNotification> _history = [...MockData.initialHistory];
   String? _selectedAppId;
+  bool _loading = false;
+  String? _error;
 
   UserSession? get session => _session;
   bool get isLoggedIn => _session != null;
+  bool get isLoading => _loading;
+  String? get error => _error;
   List<ConnectedApp> get connectedApps => List.unmodifiable(_connectedApps);
   List<SentNotification> get history => List.unmodifiable(_history);
 
@@ -37,44 +53,82 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  List<NotificationItem> notificationsForApp(String appId) {
+    if (ApiConfig.useMockData) {
+      return MockData.notificationsForApp(appId);
+    }
+    return _notificationsByApp[appId] ?? [];
+  }
+
   List<NotificationItem> notificationsForSelectedApp() {
     final app = selectedApp;
     if (app == null) return [];
-    return MockData.notificationsForApp(app.id);
+    return notificationsForApp(app.id);
   }
 
   NotificationItem? notificationById(String id) {
-    for (final app in _connectedApps) {
-      for (final n in MockData.notificationsForApp(app.id)) {
+    for (final list in _notificationsByApp.values) {
+      for (final n in list) {
         if (n.id == id) return n;
+      }
+    }
+    if (ApiConfig.useMockData) {
+      for (final app in _connectedApps) {
+        for (final n in MockData.notificationsForApp(app.id)) {
+          if (n.id == id) return n;
+        }
       }
     }
     return null;
   }
 
-  /// Simulates QR login: `notime://login?project=scratchify&user=TOKEN`
-  LoginResult loginFromQrPayload(String raw) {
-    final uri = _parseQr(raw);
-    if (uri == null) {
-      return LoginResult.invalidQr;
-    }
+  Future<LoginResult> loginFromQrPayload(String raw) async {
+    final parsed = parsePairingPayload(raw);
+    if (parsed == null) return LoginResult.invalidQr;
 
-    final project = uri.queryParameters['project']?.trim().toLowerCase();
-    final userToken = uri.queryParameters['user']?.trim();
-
-    if (project == null || userToken == null || userToken.isEmpty) {
-      return LoginResult.invalidQr;
-    }
-
-    if (userToken == 'invalid' || userToken == 'not-found') {
+    if (parsed.token == 'invalid' || parsed.token == 'not-found') {
       return LoginResult.accountNotFound;
     }
 
-    _session = UserSession(
-      userToken: userToken,
-      displayName: 'User',
-    );
+    if (ApiConfig.useMockData) {
+      return _loginMock(parsed.slug, parsed.token);
+    }
 
+    _loading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final result = await _api.pair(slug: parsed.slug, token: parsed.token);
+      _api.setAccessToken(result.accessToken);
+      await _storage.save(
+        accessToken: result.accessToken,
+        userToken: result.userToken,
+      );
+      _session = UserSession(
+        userToken: result.userToken,
+        displayName: 'User',
+      );
+      _connectedApps.clear();
+      _connectedApps.add(result.integration);
+      _selectedAppId = result.integration.id;
+      await refreshFromApi();
+      await _push.initialize();
+      return LoginResult.success;
+    } on NotiMeApiException catch (e) {
+      _error = e.message;
+      if (e.statusCode == 404 || e.statusCode == 400) {
+        return LoginResult.invalidQr;
+      }
+      return LoginResult.invalidQr;
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
+  }
+
+  LoginResult _loginMock(String project, String userToken) {
+    _session = UserSession(userToken: userToken, displayName: 'User');
     final app = _appForProject(project);
     _seedDefaultConnectedApps();
     if (!_connectedApps.any((a) => a.id == app.id)) {
@@ -85,24 +139,70 @@ class AppState extends ChangeNotifier {
     return LoginResult.success;
   }
 
-  /// Add another connected app (Option 1).
-  ConnectAppResult connectAppFromQr(String raw) {
+  Future<ConnectAppResult> connectAppFromQr(String raw) async {
     if (!isLoggedIn) return ConnectAppResult.notLoggedIn;
+    final parsed = parsePairingPayload(raw);
+    if (parsed == null) return ConnectAppResult.invalidQr;
 
-    final uri = _parseQr(raw);
-    if (uri == null) return ConnectAppResult.invalidQr;
-
-    final project = uri.queryParameters['project']?.trim().toLowerCase();
-    if (project == null) return ConnectAppResult.invalidQr;
-
-    final app = _appForProject(project);
-    if (_connectedApps.any((a) => a.id == app.id)) {
-      return ConnectAppResult.alreadyConnected;
+    if (ApiConfig.useMockData) {
+      final app = _appForProject(parsed.slug);
+      if (_connectedApps.any((a) => a.id == app.id)) {
+        return ConnectAppResult.alreadyConnected;
+      }
+      _connectedApps.add(app);
+      _selectedAppId = app.id;
+      notifyListeners();
+      return ConnectAppResult.success;
     }
-    _connectedApps.add(app);
-    _selectedAppId = app.id;
+
+    try {
+      final result = await _api.pair(slug: parsed.slug, token: parsed.token);
+      if (_connectedApps.any((a) => a.id == result.integration.id)) {
+        return ConnectAppResult.alreadyConnected;
+      }
+      _connectedApps.add(result.integration);
+      _selectedAppId = result.integration.id;
+      await _loadNotifications(result.integration.id);
+      notifyListeners();
+      return ConnectAppResult.success;
+    } on NotiMeApiException {
+      return ConnectAppResult.invalidQr;
+    }
+  }
+
+  Future<void> refreshFromApi() async {
+    if (!isLoggedIn || ApiConfig.useMockData) return;
+    final integrations = await _api.fetchIntegrations();
+    _connectedApps
+      ..clear()
+      ..addAll(integrations);
+    if (_selectedAppId == null && _connectedApps.isNotEmpty) {
+      _selectedAppId = _connectedApps.first.id;
+    }
+    for (final app in _connectedApps) {
+      await _loadNotifications(app.id);
+    }
+    _history = await _api.fetchHistory();
     notifyListeners();
-    return ConnectAppResult.success;
+  }
+
+  Future<void> _loadNotifications(String slug) async {
+    _notificationsByApp[slug] = await _api.fetchNotifications(slug);
+  }
+
+  Future<void> _restoreSession() async {
+    if (ApiConfig.useMockData) return;
+    final saved = await _storage.read();
+    if (saved == null) return;
+    _api.setAccessToken(saved.access);
+    _session = UserSession(userToken: saved.user, displayName: 'User');
+    try {
+      await refreshFromApi();
+      await _push.initialize();
+      notifyListeners();
+    } catch (_) {
+      await logout();
+    }
   }
 
   void selectApp(String appId) {
@@ -110,7 +210,19 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void markLinkClicked(String notificationId, String title, String appName) {
+  Future<void> markLinkClicked(
+    String notificationId,
+    String title,
+    String appName,
+  ) async {
+    if (!ApiConfig.useMockData) {
+      try {
+        await _api.markLinkClicked(notificationId);
+        await refreshFromApi();
+        return;
+      } catch (_) {}
+    }
+
     final existing = _history.indexWhere(
       (h) => h.notificationId == notificationId,
     );
@@ -132,31 +244,14 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void logout() {
+  Future<void> logout() async {
     _session = null;
     _connectedApps.clear();
+    _notificationsByApp.clear();
     _selectedAppId = null;
+    _api.setAccessToken(null);
+    await _storage.clear();
     notifyListeners();
-  }
-
-  Uri? _parseQr(String raw) {
-    final trimmed = raw.trim();
-    if (trimmed.isEmpty) return null;
-    try {
-      if (trimmed.startsWith('http')) {
-        return Uri.parse(trimmed);
-      }
-      if (trimmed.startsWith('notime://')) {
-        return Uri.parse(trimmed);
-      }
-      // Plain JSON-style demo payloads from buttons
-      if (trimmed.contains('project=')) {
-        return Uri.parse('notime://login?$trimmed');
-      }
-    } catch (_) {
-      return null;
-    }
-    return null;
   }
 
   void _seedDefaultConnectedApps() {
@@ -177,7 +272,9 @@ class AppState extends ChangeNotifier {
         return MockData.applicationTwo;
       case 'app_three':
         return MockData.applicationThree;
+      case 'thescratchify':
       case 'scratchify':
+        return MockData.scratchify;
       default:
         return MockData.scratchify;
     }

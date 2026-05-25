@@ -2,10 +2,11 @@
 
 Single Flutter project for the Scratchify / heynotime notification app demo.
 
-**Mock data only** — no Django API, Celery, FCM, or Firebase in this phase.
+**Live API mode** — connects to HeyNotiMe Django (`E:\Projects\2026\5.May\NotiMe`). Use `--dart-define=USE_MOCK_DATA=true` for offline UI demo.
 
 Spec & requirements: [`Scratchify-spec.txt`](Scratchify-spec.txt)  
-**v1 scope (client confirmations):** [`docs/v1-scope.md`](docs/v1-scope.md)
+**v1 scope (client confirmations):** [`docs/v1-scope.md`](docs/v1-scope.md)  
+**Backend setup:** [`docs/BACKEND_SETUP.md`](docs/BACKEND_SETUP.md)
 
 ---
 

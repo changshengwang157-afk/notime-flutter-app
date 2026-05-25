@@ -269,7 +269,20 @@ Exact paths to match Django implementation.
 
 ---
 
+## Implementation status (Phases 1–4)
+
+| Phase | Status |
+|-------|--------|
+| 1 Pairing + list + one push | Backend API + Celery task + Flutter API client |
+| 2 Full scheduler, history, QR in dashboard | Celery recurrence; `/history/`; My Users pairing URLs |
+| 3 Scratchify iframe | `/embed/{slug}/{token}/` (Scratchify modal = separate site deploy) |
+| 4 FCM, deep links, secure session | `firebase_messaging`, App Links, `flutter_secure_storage` |
+| Scratchify registration API | **Excluded** per client |
+
+See `docs/BACKEND_SETUP.md` and `E:\Projects\2026\5.May\NotiMe\docs\MOBILE_API.md`.
+
 ## Document history
 
 - Created from client answers to the 11-point confirmation list (May 2026).
 - Aligns Flutter prototype in this repo with HeyNotiMe Django project at `E:\Projects\2026\5.May\NotiMe`.
+- Phases 1–4 implemented May 2026 (excluding Scratchify registration API).

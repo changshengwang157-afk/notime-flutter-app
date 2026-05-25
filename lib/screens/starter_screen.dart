@@ -21,7 +21,7 @@ class _StarterScreenState extends State<StarterScreen> {
   String? _lastScan;
 
   void _goToNotifications() {
-    _handlePayload('notime://login?project=scratchify&user=preview-user');
+    _handlePayload('notime://login?project=thescratchify&user=preview-user');
   }
 
   Future<void> _openScanner() async {
@@ -32,22 +32,23 @@ class _StarterScreenState extends State<StarterScreen> {
       ),
     );
     if (payload != null && mounted) {
-      _handlePayload(payload);
+      await _handlePayload(payload);
     }
   }
 
-  void _handlePayload(String payload) {
+  Future<void> _handlePayload(String payload) async {
     if (_lastScan == payload) return;
     _lastScan = payload;
 
     final state = context.read<AppState>();
-    final result = state.loginFromQrPayload(payload);
+    final result = await state.loginFromQrPayload(payload);
 
     if (!mounted) return;
 
     switch (result) {
       case LoginResult.success:
-        context.go('/home/scratchify');
+        final slug = context.read<AppState>().selectedApp?.id ?? 'thescratchify';
+        context.go('/home/$slug');
       case LoginResult.accountNotFound:
         context.push('/account-not-found');
       case LoginResult.invalidQr:

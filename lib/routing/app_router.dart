@@ -18,7 +18,7 @@ GoRouter createRouter(AppState appState) {
       final onAccountNotFound = state.matchedLocation == '/account-not-found';
 
       if (loggedIn && (onStarter || onAccountNotFound)) {
-        final appId = appState.selectedApp?.id ?? 'scratchify';
+        final appId = appState.selectedApp?.id ?? 'thescratchify';
         return '/home/$appId';
       }
       if (!loggedIn &&
@@ -28,7 +28,7 @@ GoRouter createRouter(AppState appState) {
         return '/';
       }
       if (loggedIn && state.matchedLocation == '/home') {
-        final appId = appState.selectedApp?.id ?? 'scratchify';
+        final appId = appState.selectedApp?.id ?? 'thescratchify';
         return '/home/$appId';
       }
       return null;
@@ -44,7 +44,7 @@ GoRouter createRouter(AppState appState) {
       ),
       GoRoute(
         path: '/home',
-        builder: (_, __) => const HomeScreen(appId: 'scratchify'),
+        builder: (_, __) => const HomeScreen(appId: 'thescratchify'),
       ),
       GoRoute(
         path: '/home/:appId',

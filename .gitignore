@@ -1,0 +1,29 @@
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+pubspec.lock
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Android
+android/.gradle/
+android/local.properties
+**/GeneratedPluginRegistrant.*
+
+# iOS / macOS
+ios/Pods/
+ios/.symlinks/
+**/ephemeral/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Empty legacy folder (remove after IDE releases lock)
+notime_app/

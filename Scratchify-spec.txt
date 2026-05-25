@@ -1,0 +1,296 @@
+1.After logging in, the app should display a notifications list and be integrated with Scratchify
+2.The user must be connected to their account from Scratchify and able to receive live signals/notifications.
+3.The app should send push notifications based on data configured either in Scratchify or directly inside the app itself — whichever makes more sense technically.
+4.Inside the notifications list, users should be able to click and open a specific scratch card from Scratchify, along with a preview image of the card.
+
+We also need to make sure the app can get approved on both the App Store and Google Play, so we should discuss whether this should officially be a dedicated app for Scratchify or something more standalone — for example, an app focused around free-entry games and reward notifications. I’d really appreciate your thoughts and recommendations on the best direction from your experience.
+https://thescratchify.com/
+
+
+So we need to agree on how we’re going to approach this — whether as an app directly connected to Scratchify, or as a seemingly separate app focused on notifications for free-entry games.
+The key requirement is that we must get approval in both Google Play and the App Store, so this needs to be taken into account from the beginning.
+
+Basically, the only core functionality is sending notifications (push) according to the user’s selected time
+Django would handle storing data in the PostgreSQL database. 
+we would save there who should receive notifications and how often, and then handle the mobile app side in Flutter.
+===================================Client message(Edytuj)================================
+Yes, I've heard about that as well, there are a few flutter libraies that provide components and utility classes inspired by bootstrap5, so the development process can feel much closer to building resposive web apps.
+
+From what I know, it works by offering prebuilt UI components(buttons, grids, cards, modals, spacing utilities, etc.) and responsive layouts similar to Bootstrap, but rendered natively in Flutter for Android and iOS.
+
+If the library is stable enough, this could significantly speed up development and make it easier to maintain a design system similar to the current web version of Scratchify.
+
+Please check it by Friday - if it works well in practive, we should definitely be able to deliver the MVP using that approach.
+============================================================================ 
+We need a Flutter app for this project:
+https://heynotime.com/
+ 
+The database structure is relatively flat and is located in:
+authentication.models
+ 
+How should it work?
+ 
+1. Initial app screen
+ 
+    After installing the app, the first screen should look like this:
+https://heynotime.com/mobile-preview/starter-tab/
+ 
+    At this step, the user must scan a QR code.
+ 
+    Scanning the QR code should log the user into their account.
+ 
+    User accounts are already created in the CustomUser instance.
+ 
+    If the account does not exist, the app should display a message saying:
+ 
+        Account not found.
+        Please contact the app administrator.
+ 
+2. Notifications screen
+ 
+    After logging in, the user should see their notifications here:
+https://heynotime.com/mobile-preview/
+ 
+3. Admin notification settings
+ 
+    From the admin side, notifications will be configured here:
+https://heynotime.com/dashboard/set-notification/
+ 
+    This includes:
+ 
+        - The notification template
+        - Who the notification should be sent to
+        - How often the notification should be sent
+ 
+    The administrator has two tabs where they can configure who will receive notifications:
+https://www.awesomescreenshot.com/image/60516419?key=f220b283b78a0356f67e3e2b3d4799ac
+ 
+    We also prepared helper text so you can understand what each field is responsible for:
+https://www.awesomescreenshot.com/image/60516427?key=36cc031716091074c391ed4a04695330
+ 
+4. Mobile app options
+ 
+    Option 1:
+ 
+        Allows users to add new apps by scanning additional QR codes.
+ 
+    Option 2:
+ 
+        Displays the logo from our sub-app.
+ 
+        Below the logo, there should be a list of notifications.
+ 
+        Reference:
+https://www.awesomescreenshot.com/image/60516435?key=69785cc2d83d100696f1c7d67e754ea2
+ 
+5. Notification display
+ 
+    Notification example:
+https://www.awesomescreenshot.com/image/60516447?key=bc63ebeb75d6b2c4d7f17addfb6f2f8d
+ 
+    A notification can expire.
+ 
+    In that case, the notification_time field defines the expiration date.
+ 
+    On the notification list, expired notifications should be displayed like this:
+https://www.awesomescreenshot.com/image/60516503?key=f5730bd6a0624916dc62b4625a144773
+ 
+6. Notification details screen
+ 
+    When the user clicks a notification, it should look like this:
+https://heynotime.com/mobile-preview/notification-details/
+ 
+7. Sent notifications history
+ 
+    The list of sent notifications can be created in a new tab.
+ 
+    Reference:
+https://www.awesomescreenshot.com/image/60516516?key=f08693a7d408f2d3086485a27daca0cc
+ 
+    We should track:
+ 
+        - Sent notifications
+        - The exact date and time when they were sent
+        - Whether the link inside the notification was clicked
+ 
+    Reference:
+https://www.awesomescreenshot.com/image/60516687?key=ef01f5253649240cace6c9e5bfda951d
+ 
+8. Tracking users through links
+ 
+    When redirecting users outside the app through notification links,
+    please add the following parameter:
+ 
+        ?user={{ user.user_token }}
+ 
+9. Git access
+ 
+    I sent you a Git invitation:
+https://www.awesomescreenshot.com/image/60516703?key=3d66c8cbc0e445bca792483b6a95523f
+ 
+10. Additional changes
+ 
+    If you need any additional fields, modifications, or variables in the project,
+    you can add them.
+ 
+11. Dashboard forms
+ 
+    In the dashboard app, there are still forms that need to be completed:
+https://heynotime.com/dashboard/set-notification-time/
+ 
+    Please complete them according to the expected logic so they create
+    the proper notification instances and send notifications to mobile devices.
+ 
+12. Budget and deployment
+ 
+    The client confirmed a budget of $800.
+ 
+    However, the client requires full deployment to both:
+ 
+        - App Store
+        - Google Play
+ 
+13. Final note
+ 
+    If you have any questions, I remain available.
+ 
+    You can start the work immediately.
+
+
+=======================Cursor question ===============
+I am going to deveope following app:
+
+	1.After logging in, the app should display a notifications list and be integrated with Scratchify
+	2.The user must be connected to their account from Scratchify and able to receive live signals/notifications.
+	3.The app should send push notifications based on data configured either in Scratchify or directly inside the app itself — whichever makes more sense technically.
+	4.Inside the notifications list, users should be able to click and open a specific scratch card from Scratchify, along with a preview image of the card.
+
+We also need to make sure the app can get approved on both the App Store and Google Play, so we should discuss whether this should officially be a dedicated app for Scratchify or something more standalone — for example, an app focused around free-entry games and reward notifications. I’d really appreciate your thoughts and recommendations on the best direction from your experience.
+https://thescratchify.com/
+
+
+So we need to agree on how we’re going to approach this — whether as an app directly connected to Scratchify, or as a seemingly separate app focused on notifications for free-entry games.
+The key requirement is that we must get approval in both Google Play and the App Store, so this needs to be taken into account from the beginning.
+
+Basically, the only core functionality is sending notifications (push) according to the user’s selected time
+Django would handle storing data in the PostgreSQL database. 
+we would save there who should receive notifications and how often, and then handle the mobile app side in Flutter.
+
+my client sent this message:
+"Yes, I've heard about that as well, there are a few flutter libraies that provide components and utility classes inspired by bootstrap5, so the development process can feel much closer to building resposive web apps.
+
+From what I know, it works by offering prebuilt UI components(buttons, grids, cards, modals, spacing utilities, etc.) and responsive layouts similar to Bootstrap, but rendered natively in Flutter for Android and iOS.
+
+If the library is stable enough, this could significantly speed up development and make it easier to maintain a design system similar to the current web version of Scratchify.
+
+Please check it by Friday - if it works well in practive, we should definitely be able to deliver the MVP using that approach."
+
+
+We need a Flutter app for this project:
+1. Initial app screen
+ 
+    After installing the app, the first screen should look like this (1st screenshot):
+
+ At this step, the user must scan a QR code.
+ 
+    Scanning the QR code should log the user into their account.
+ 
+    User accounts are already created in the CustomUser instance.
+ 
+    If the account does not exist, the app should display a message saying:
+ 
+        Account not found.
+        Please contact the app administrator.
+
+2. Notifications screen
+ 
+    After logging in, the user should see their notifications here(2nd screenshot):
+
+3. Admin notification settings
+ 
+    From the admin side, notifications will be configured here(3rd screenshot):
+    This includes:
+ 
+        - The notification template
+        - Who the notification should be sent to
+        - How often the notification should be sent
+
+The administrator has two tabs where they can configure who will receive notifications(4th screenshot):
+
+We also prepared helper text so you can understand what each field is responsible for(5th screenshot):
+
+4. Mobile app options
+ 
+    Option 1:
+ 
+        Allows users to add new apps by scanning additional QR codes.
+ 
+    Option 2:
+ 
+        Displays the logo from our sub-app.
+ 
+        Below the logo, there should be a list of notifications(6th screenshot).
+
+5. Notification display
+ 
+    Notification example(7th screenshot):
+
+ A notification can expire.
+ 
+    In that case, the notification_time field defines the expiration date.
+ 
+    On the notification list, expired notifications should be displayed like this(7th screenshot)
+
+6. Notification details screen
+ 
+    When the user clicks a notification, it should look like this(8th screenshot):
+
+
+7. Sent notifications history
+ 
+    The list of sent notifications can be created in a new tab.
+ 
+    Reference(9th screenshot):
+
+ We should track:
+ 
+        - Sent notifications
+        - The exact date and time when they were sent
+        - Whether the link inside the notification was clicked
+ 
+    Reference(10th screenshot):
+
+8. Tracking users through links
+ 
+    When redirecting users outside the app through notification links,
+    please add the following parameter:
+ 
+        ?user={{ user.user_token }}
+
+10. Additional changes
+ 
+    If you need any additional fields, modifications, or variables in the project,
+    you can add them.
+ 
+11. Dashboard forms
+ 
+    In the dashboard app, there are still forms that need to be completed:
+https://heynotime.com/dashboard/set-notification-time/
+ 
+    Please complete them according to the expected logic so they create
+    the proper notification instances and send notifications to mobile devices.
+
+Please check this requirement in more detail.
+
+
+===================================================
+python manage.py dumpdata --natural-foreign --natural-primary -e contenttypes -e auth.Permission --indent 2 > data_backup.json
+
+python manage.py loaddata data_backup.json
+============================Question list for notime app==========
+1. Base URL(s): production only heynotime.com or also api. subdomain?
+2. QR payload format (exact): JSON vs URL? Fields: project_name, user_token, anything else? Example string from “My Accounts” QR.
+3. Login endpoint after scan: POST /api/mobile/login/ with token only, or also project name? Response: session JWT, refresh token, expiry?
+4. When something happens on Scratchify, does it already create/update a notification row in Django (or trigger a Celery task), or do we need a new webhook from Scratchify → NotiMe backend?
+5.Can you confirm that all Scratchify-triggered notifications are created in Django (same DB as NotiMe) and sent via Celery/FCM, and that the Flutter app only registers FCM tokens and reads the notification API, no direct integration with Scratchify servers?
+=============== =======5.24th==================================

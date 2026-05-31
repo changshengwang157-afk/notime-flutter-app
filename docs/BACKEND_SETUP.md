@@ -2,13 +2,15 @@
 
 Code: **`E:\Projects\2026\5.May\NotiMe`**
 
+**Minimal test (no Redis / Firebase / Scratchify):** [`INITIAL_TEST.md`](INITIAL_TEST.md)
+
 Full API and Celery docs: [NotiMe/docs/MOBILE_API.md](file:///E:/Projects/2026/5.May/NotiMe/docs/MOBILE_API.md)
 
 ## Quick test with Flutter
 
-1. Start Redis, Django, Celery (see MOBILE_API.md).
-2. `python manage.py seed_notime` — creates `thescratchify` integration.
-3. Dashboard → My Users → create user → copy pairing URL.
+1. `python manage.py runserver 0.0.0.0:8000` (Redis/Celery not required for pairing + list).
+2. Dashboard → My Users → create user → copy pairing URL.
+3. `python manage.py create_test_notification` — one row for the list.
 4. Run app:
 
 ```powershell

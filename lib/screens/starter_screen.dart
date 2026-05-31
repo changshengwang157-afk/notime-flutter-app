@@ -20,10 +20,6 @@ class StarterScreen extends StatefulWidget {
 class _StarterScreenState extends State<StarterScreen> {
   String? _lastScan;
 
-  void _goToNotifications() {
-    _handlePayload('notime://login?project=thescratchify&user=preview-user');
-  }
-
   Future<void> _openScanner() async {
     final payload = await Navigator.of(context).push<String>(
       MaterialPageRoute(
@@ -127,27 +123,6 @@ class _StarterScreenState extends State<StarterScreen> {
                             borderRadius: BorderRadius.circular(28),
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    TextButton(
-                      onPressed: _goToNotifications,
-                      child: const Text(
-                        'Go to notifications',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          decoration: TextDecoration.underline,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Use this if the camera is unavailable on your device.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: NotiMeColors.textSecondary,
                       ),
                     ),
                   ],

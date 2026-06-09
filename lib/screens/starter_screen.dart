@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 
 import '../core/theme/notime_theme.dart';
 import '../services/app_state.dart';
-import '../widgets/help_sheet.dart';
 import '../widgets/notime_app_bar_title.dart';
 import '../widgets/notime_scaffold.dart';
 
@@ -63,12 +62,6 @@ class _StarterScreenState extends State<StarterScreen> {
       appBar: AppBar(
         title: const NotiMeAppBarTitle(),
         centerTitle: true,
-        actions: [
-          TextButton(
-            onPressed: () => showHelpSheet(context),
-            child: const Text('Guide'),
-          ),
-        ],
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {

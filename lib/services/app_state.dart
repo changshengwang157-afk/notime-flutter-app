@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../api/notime_api_client.dart';
 import '../config/api_config.dart';
@@ -7,12 +10,22 @@ import '../models/connected_app.dart';
 import '../models/notification_item.dart';
 import '../models/sent_notification.dart';
 import '../models/user_session.dart';
+import '../utils/external_link.dart';
 import 'push_service.dart';
 import 'session_storage.dart';
 
 class AppState extends ChangeNotifier {
   AppState() {
-    _restoreSession();
+    _restoreSession().whenComplete(_completeReady);
+  }
+
+  final Completer<void> _readyCompleter = Completer<void>();
+  Future<void> get ready => _readyCompleter.future;
+
+  void _completeReady() {
+    if (!_readyCompleter.isCompleted) {
+      _readyCompleter.complete();
+    }
   }
 
   final SessionStorage _storage = SessionStorage();
@@ -113,7 +126,7 @@ class AppState extends ChangeNotifier {
       _connectedApps.add(result.integration);
       _selectedAppId = result.integration.id;
       await refreshFromApi();
-      await _push.initialize();
+      await _push.registerDevice();
       return LoginResult.success;
     } on NotiMeApiException catch (e) {
       _error = e.message;
@@ -170,6 +183,54 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Called once from [NotiMeApp] — wires FCM tap → scratch card.
+  Future<void> setupPushHandlers() async {
+    await _push.configure(onTap: _handlePushTap);
+    await ready;
+    await _push.processInitialMessage();
+  }
+
+  Future<void> _handlePushTap(Map<String, String> data) async {
+    if (!isLoggedIn || ApiConfig.useMockData) return;
+
+    final deliveryId = data['delivery_id']?.trim();
+    if (deliveryId == null || deliveryId.isEmpty) return;
+
+    var item = notificationById(deliveryId);
+    if (item == null) {
+      try {
+        item = await _api.fetchNotificationDetail(deliveryId);
+        _cacheNotification(item);
+        notifyListeners();
+      } catch (e) {
+        debugPrint('Push tap: could not load $deliveryId: $e');
+        return;
+      }
+    }
+
+    if (item.isExpired) return;
+
+    final appName = connectedAppById(item.appId)?.displayName ?? 'App';
+    final token = _session!.userToken;
+    final uri = appendUserQuery(item.externalUrl, token);
+
+    await markLinkClicked(item.id, item.title, appName);
+
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  void _cacheNotification(NotificationItem item) {
+    final list = _notificationsByApp.putIfAbsent(item.appId, () => []);
+    final idx = list.indexWhere((n) => n.id == item.id);
+    if (idx >= 0) {
+      list[idx] = item;
+    } else {
+      list.insert(0, item);
+    }
+  }
+
   Future<void> refreshFromApi() async {
     if (!isLoggedIn || ApiConfig.useMockData) return;
     final integrations = await _api.fetchIntegrations();
@@ -198,7 +259,7 @@ class AppState extends ChangeNotifier {
     _session = UserSession(userToken: saved.user, displayName: 'User');
     try {
       await refreshFromApi();
-      await _push.initialize();
+      await _push.registerDevice();
       notifyListeners();
     } catch (_) {
       await logout();

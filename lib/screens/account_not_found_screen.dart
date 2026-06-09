@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/theme/notime_theme.dart';
-import '../widgets/help_sheet.dart';
 import '../widgets/notime_app_bar_title.dart';
 import '../widgets/notime_scaffold.dart';
 
@@ -15,12 +14,6 @@ class AccountNotFoundScreen extends StatelessWidget {
       appBar: AppBar(
         title: const NotiMeAppBarTitle(),
         centerTitle: true,
-        actions: [
-          TextButton(
-            onPressed: () => showHelpSheet(context),
-            child: const Text('Guide'),
-          ),
-        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),

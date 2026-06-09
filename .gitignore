@@ -14,12 +14,16 @@ pubspec.lock
 # Android
 android/.gradle/
 android/local.properties
+android/app/google-services.json
 **/GeneratedPluginRegistrant.*
 
 # iOS / macOS
 ios/Pods/
 ios/.symlinks/
 **/ephemeral/
+
+# Secrets (Firebase service account, etc.)
+secrets/
 
 # OS
 .DS_Store

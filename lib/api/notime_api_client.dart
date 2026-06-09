@@ -140,6 +140,18 @@ class NotiMeApiClient {
     }).toList();
   }
 
+  Future<NotificationItem> fetchNotificationDetail(String deliveryId) async {
+    final res = await _client.get(
+      Uri.parse('${ApiConfig.apiV1}/notifications/$deliveryId/'),
+      headers: _headers,
+    );
+    if (res.statusCode != 200) {
+      throw NotiMeApiException(_errorBody(res), statusCode: res.statusCode);
+    }
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    return _notificationFromJson(data);
+  }
+
   Future<void> markLinkClicked(String deliveryId) async {
     await _client.post(
       Uri.parse('${ApiConfig.apiV1}/notifications/$deliveryId/'),

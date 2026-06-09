@@ -43,3 +43,8 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+// Apply when you add android/app/google-services.json from Firebase Console.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}

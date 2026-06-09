@@ -72,24 +72,23 @@ Use Android **9+** on Nox (API 26+). Android 7.1 shows as `unsupported` in `flut
 
 Close **`flutter attach`** / **`flutter run`** and **Nox** first (avoids “file is being used by another process”, Windows errno 32).
 
-**Recommended on Windows:**
+**Recommended on Windows** (staging copy avoids errno 32 when Cursor has the project open):
 
 ```powershell
-.\scripts\build-debug-apk.ps1
-adb -s 127.0.0.1:62025 install -r build\app\outputs\flutter-apk\app-debug.apk
+# Debug (testing)
+.\scripts\build-apk.ps1 -UseStagingCopy -ApiBase "https://heynotime.com" -UseMockData $false
+
+# Release (smaller, faster — same production API)
+.\scripts\build-apk.ps1 -UseStagingCopy -Release -ApiBase "https://heynotime.com" -UseMockData $false
+
+adb install -r build\app\outputs\flutter-apk\app-release.apk
 ```
 
-Manual steps if the script still fails:
+`build-debug-apk.ps1` is an alias for `build-apk.ps1`.
 
-```powershell
-cd android; .\gradlew.bat --stop; cd ..
-flutter clean
-Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
-flutter pub get
-flutter build apk --debug
-```
+If you see `Cannot copy file ... notification_*.png` (errno 32): use **`-UseStagingCopy`** above, or close the emulator, Gradle, and PNG tabs in the editor.
 
-If you see `Cannot copy file ... notime_logo.png` / `notification_*.png` (errno 32): another process locked assets during the build — close the emulator, stop Gradle (`gradlew --stop`), close open PNG tabs in the editor, add a **Windows Defender exclusion** for the project folder, wait a few seconds, then run the script again.
+**Safe to ignore during build:** `26 packages have newer versions`, `mobile_scanner` / Built-in Kotlin warning, font tree-shaking messages.
 
 **Build errors fixed in this repo:**
 
@@ -100,9 +99,15 @@ If Kotlin errors persist, move the project to the same drive as Pub cache, e.g. 
 
 ---
 
+## Firebase push (Android)
+
+Push → tap → Scratchify scratch card is implemented in the app. You still need to add Firebase config files:
+
+- **App:** `android/app/google-services.json` — see [`docs/FIREBASE_SETUP.md`](docs/FIREBASE_SETUP.md)
+- **Server:** `FCM_SERVICE_ACCOUNT_FILE` on VPS (HeyNotiMe backend)
+
 ## Phase 2 (later)
 
-- Django REST API + real QR from heynotime.com
-- FCM + Celery push
-- Secure token storage
-- Store release (App Store / Play)
+- Store release signing (Play / App Store)
+- iOS build + APNs
+- Huawei push (non-GMS devices)

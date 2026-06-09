@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../core/theme/notime_theme.dart';
 import '../models/notification_item.dart';
 import '../services/app_state.dart';
+import '../utils/external_link.dart';
 import '../widgets/help_sheet.dart';
 import '../widgets/notification_image.dart';
 import '../widgets/notime_scaffold.dart';
@@ -116,7 +117,7 @@ class NotificationDetailScreen extends StatelessWidget {
   ) async {
     final state = context.read<AppState>();
     final token = state.session?.userToken ?? 'unknown';
-    final uri = _appendUserToken(Uri.parse(item.externalUrl), token);
+    final uri = appendUserQuery(item.externalUrl, token);
 
     state.markLinkClicked(item.id, item.title, appName);
 
@@ -125,11 +126,5 @@ class NotificationDetailScreen extends StatelessWidget {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
-  }
-
-  Uri _appendUserToken(Uri base, String userToken) {
-    final params = Map<String, String>.from(base.queryParameters);
-    params['user'] = userToken;
-    return base.replace(queryParameters: params);
   }
 }

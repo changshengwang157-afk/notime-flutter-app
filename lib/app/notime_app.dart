@@ -23,6 +23,7 @@ class _NotiMeAppState extends State<NotiMeApp> {
     super.initState();
     _appState = AppState();
     _router = createRouter(_appState);
+    _appState.setupPushHandlers();
   }
 
   @override

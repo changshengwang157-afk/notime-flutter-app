@@ -17,11 +17,19 @@ class PushService {
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
 
+  /// Custom sound from android/app/src/main/res/raw/notification.wav
+  static const RawResourceAndroidNotificationSound _alertSound =
+      RawResourceAndroidNotificationSound('notification');
+
+  /// Channel id must change when sound settings change (Android locks channels).
   static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
-    'notime_push',
-    'NotiMe Notifications',
-    description: 'Scratch card alerts and updates',
-    importance: Importance.high,
+    'notime_push_custom',
+    'NotiMe Alerts',
+    description: 'Scratch card alerts with custom sound',
+    importance: Importance.max,
+    playSound: true,
+    enableVibration: true,
+    sound: _alertSound,
   );
 
   bool _configured = false;
@@ -124,8 +132,11 @@ class PushService {
           _channel.id,
           _channel.name,
           channelDescription: _channel.description,
-          importance: Importance.high,
+          importance: Importance.max,
           priority: Priority.high,
+          playSound: true,
+          enableVibration: true,
+          sound: _alertSound,
           icon: '@mipmap/ic_launcher',
         ),
       ),

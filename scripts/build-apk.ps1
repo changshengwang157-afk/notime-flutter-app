@@ -1,17 +1,19 @@
 # Reliable APK build on Windows (avoids asset file-lock errno 32).
+# Staging copy is ON by default — raw `flutter build` often fails while Cursor has the project open.
 # Usage:
-#   .\scripts\build-apk.ps1 -UseStagingCopy -ApiBase "https://heynotime.com" -UseMockData $false
-#   .\scripts\build-apk.ps1 -UseStagingCopy -Release -ApiBase "https://heynotime.com" -UseMockData $false
+#   .\scripts\build-apk.ps1 -ApiBase "https://heynotime.com" -UseMockData $false
+#   .\scripts\build-apk.ps1 -Release -ApiBase "https://heynotime.com" -UseMockData $false
+#   .\scripts\build-apk.ps1 -NoStagingCopy   # only if IDE/emulator are closed
 param(
     [string]$ApiBase = "",
     [bool]$UseMockData = $false,
     [switch]$Release,
-    [switch]$UseStagingCopy
+    [switch]$NoStagingCopy
 )
+$UseStagingCopy = -not $NoStagingCopy
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
-$StagingRoot = "C:\dev\notime-app-build"
 $BuildMode = if ($Release) { "release" } else { "debug" }
 $ApkName = if ($Release) { "app-release.apk" } else { "app-debug.apk" }
 
@@ -30,14 +32,55 @@ function Remove-TreeRetry {
     }
 }
 
-function Stop-Gradle {
+function Stop-BuildProcesses {
     if (Test-Path "android\gradlew.bat") {
         Push-Location android
-        & .\gradlew.bat --stop 2>$null
+        & .\gradlew.bat --stop *> $null
         Pop-Location
     }
-    Get-Process dart -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 2
+    foreach ($name in @("dart", "java")) {
+        Get-Process $name -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Seconds 3
+}
+
+function Setup-BuildEnvironment {
+    $tempDir = "E:\temp"
+    New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+    $env:TEMP = $tempDir
+    $env:TMP = $tempDir
+
+    foreach ($path in @($ProjectRoot, "E:\flutter", $tempDir, "E:\dev")) {
+        Add-MpPreference -ExclusionPath $path -ErrorAction SilentlyContinue
+    }
+}
+
+function Refresh-AssetFiles {
+    param([string]$Root)
+
+    $assetsDir = Join-Path $Root "assets"
+    if (-not (Test-Path $assetsDir)) { return }
+
+    Write-Host "Refreshing asset files (breaks Windows file locks)..."
+    Get-ChildItem -Path $assetsDir -Recurse -File | ForEach-Object {
+        $path = $_.FullName
+        for ($i = 1; $i -le 5; $i++) {
+            try {
+                $bytes = [System.IO.File]::ReadAllBytes($path)
+                $temp = "$path.refresh"
+                [System.IO.File]::WriteAllBytes($temp, $bytes)
+                if (Test-Path $path) {
+                    [System.IO.File]::Delete($path)
+                }
+                [System.IO.File]::Move($temp, $path)
+                break
+            } catch {
+                if ($i -eq 5) { throw }
+                Write-Host "  Retry asset $($_.Name) ($i/5)..."
+                Start-Sleep -Seconds 2
+            }
+        }
+    }
 }
 
 function Invoke-FlutterBuild {
@@ -45,7 +88,8 @@ function Invoke-FlutterBuild {
 
     Push-Location $WorkDir
     try {
-        Stop-Gradle
+        Stop-BuildProcesses
+        Refresh-AssetFiles -Root $WorkDir
 
         Write-Host "Cleaning build caches ($BuildMode) in $WorkDir ..."
         flutter clean | Out-Null
@@ -73,7 +117,8 @@ function Invoke-FlutterBuild {
             }
             if ($attempt -lt $maxAttempts) {
                 Write-Host "Build failed (often a file lock). Cleaning intermediates..."
-                Stop-Gradle
+                Stop-BuildProcesses
+                Refresh-AssetFiles -Root $WorkDir
                 Remove-TreeRetry "build\app\intermediates\flutter"
                 Remove-TreeRetry ".dart_tool\flutter_build"
                 Start-Sleep -Seconds 5
@@ -106,35 +151,47 @@ function Finish-Build {
     exit 0
 }
 
-if ($UseStagingCopy) {
-    Write-Host "Staging copy build ($BuildMode) — avoids Cursor/IDE locks on E: project folder..."
-    New-Item -ItemType Directory -Path (Split-Path $StagingRoot) -Force | Out-Null
-    robocopy $ProjectRoot $StagingRoot /MIR /XD build .dart_tool .git /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
+function New-StagingCopy {
+    $stamp = Get-Date -Format "yyyyMMddHHmmss"
+    $stagingRoot = "E:\dev\notime-build-$stamp"
+    New-Item -ItemType Directory -Path (Split-Path $stagingRoot) -Force | Out-Null
+
+    Write-Host "Staging copy -> $stagingRoot"
+    Stop-BuildProcesses
+
+    robocopy $ProjectRoot $stagingRoot /MIR /XD build .dart_tool .git /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
     if ($LASTEXITCODE -ge 8) {
         Write-Host "robocopy failed with exit code $LASTEXITCODE"
         exit 1
     }
 
-    Add-MpPreference -ExclusionPath $StagingRoot -ErrorAction SilentlyContinue
-
-    if (-not (Invoke-FlutterBuild -WorkDir $StagingRoot)) {
-        Write-Host "Staging build failed."
-        exit 1
-    }
-    Finish-Build -WorkDir $StagingRoot
+    Add-MpPreference -ExclusionPath $stagingRoot -ErrorAction SilentlyContinue
+    Refresh-AssetFiles -Root $stagingRoot
+    return , $stagingRoot
 }
 
+Setup-BuildEnvironment
 Set-Location $ProjectRoot
-Add-MpPreference -ExclusionPath $ProjectRoot -ErrorAction SilentlyContinue
-Add-MpPreference -ExclusionPath "E:\flutter" -ErrorAction SilentlyContinue
+
+if ($UseStagingCopy) {
+    Write-Host "Staging copy build ($BuildMode) - avoids Cursor/IDE locks on project folder..."
+    $stagingRoot = New-StagingCopy
+
+    if (-not (Invoke-FlutterBuild -WorkDir $stagingRoot)) {
+        Write-Host "Staging build failed. Staging folder kept at: $stagingRoot"
+        exit 1
+    }
+    Finish-Build -WorkDir $stagingRoot
+}
 
 if (Invoke-FlutterBuild -WorkDir $ProjectRoot) {
     Finish-Build -WorkDir $ProjectRoot
 }
 
 Write-Host ""
-Write-Host "Build still failing (errno 32 = file locked). Use staging copy:"
-Write-Host "  .\scripts\build-apk.ps1 -UseStagingCopy -Release -ApiBase `"https://heynotime.com`" -UseMockData `$false"
+Write-Host "Do NOT use raw 'flutter build apk' while Cursor has this project open."
+Write-Host "Use this script instead:"
+Write-Host "  .\scripts\build-apk.ps1 -ApiBase `"https://heynotime.com`" -UseMockData `$false"
 Write-Host ""
-Write-Host "Before building: close emulator, flutter run, Android Studio, PNG tabs in Cursor."
+Write-Host "Also close: emulator, flutter run, Android Studio, PNG preview tabs."
 exit 1

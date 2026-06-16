@@ -1,52 +1,61 @@
-# Firebase push setup (NotiMe Android)
+# Firebase push setup (NotiMe — Android + iOS)
 
 End-to-end push: **HeyNotiMe server → FCM → phone tray → tap → Scratchify scratch card**.
 
 You must complete both **server** and **app** steps before push E2E works.
 
+**TestFlight (iOS):** see [`TESTFLIGHT_SETUP.md`](TESTFLIGHT_SETUP.md).
+
 ---
 
-## 1. Create Firebase project
+## 1. Firebase project apps
 
-1. Open [Firebase Console](https://console.firebase.google.com/).
-2. Create a project (or reuse an existing one).
-3. Add an **Android app** with package name:
+### Android
+
+1. Open [Firebase Console](https://console.firebase.google.com/) → project **notimeapp-54425** (or create one).
+2. Add an **Android app** with package name:
 
    ```text
    com.heynotime.notime_app
    ```
 
-4. Download **`google-services.json`**.
-5. Copy it to:
+3. Download **`google-services.json`** → `Notime-App/android/app/google-services.json`
+4. Rebuild the APK (Gradle plugin applies automatically when the file exists).
+
+### iOS (TestFlight / App Store)
+
+1. Same Firebase project → **Add app** → **iOS**.
+2. Bundle ID:
 
    ```text
-   Notime-App/android/app/google-services.json
+   com.heynotime.notimeApp
    ```
 
-   (Template: `android/app/google-services.json.example`)
-
-6. Rebuild the APK. The Gradle plugin applies automatically when that file exists.
+3. Download **`GoogleService-Info.plist`** → `Notime-App/ios/Runner/GoogleService-Info.plist`
+4. Add the file to the **Runner** target in Xcode (see `GoogleService-Info.plist.example`).
+5. Firebase → **Cloud Messaging** → upload **APNs Authentication Key** (.p8) from Apple Developer.
 
 ---
 
 ## 2. Server FCM (VPS)
 
-1. Firebase Console → **Project settings** → **Service accounts**.
-2. **Generate new private key** → save JSON on VPS, e.g.:
-
-   ```text
-   /home/app/app/secrets/firebase-service-account.json
-   ```
-
+1. Firebase Console → **Project settings** → **Service accounts** → **Generate new private key**.
+2. Save on VPS, e.g. `/home/app/app/secrets/firebase-service-account.json`
 3. In `/home/app/app/.env`:
 
    ```env
    FCM_SERVICE_ACCOUNT_FILE=/home/app/app/secrets/firebase-service-account.json
+   APPLE_TEAM_ID=YOUR_10_CHAR_TEAM_ID
+   IOS_BUNDLE_ID=com.heynotime.notimeApp
    ```
 
-4. Restart Celery worker + beat so scheduled pushes use the new credential.
+4. Restart Django + Celery worker + beat.
 
----
+Universal links (pairing URLs open the app):
+
+```bash
+curl -s https://heynotime.com/.well-known/apple-app-site-association
+```
 
 ## 3. What the app does (implemented)
 
@@ -92,7 +101,8 @@ adb install -r build\app\outputs\flutter-apk\app-release.apk
 | No push at all | `FCM_SERVICE_ACCOUNT_FILE` on VPS; Celery logs; device has GMS |
 | App builds but no FCM token | `google-services.json` present; package name matches |
 | Push arrives, tap does nothing | User still logged in; `delivery_id` in FCM data; API reachable |
-| Foreground: no banner | Android 13+ notification permission; channel `notime_push` |
+| Foreground: no banner | Android 13+ notification permission; iOS: notification permission on first launch |
+| No push on iPhone | `GoogleService-Info.plist` + APNs key in Firebase + TestFlight build |
 | Huawei without GMS | FCM not supported — needs separate push SDK (out of v1 scope) |
 
 ---

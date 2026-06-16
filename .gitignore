@@ -20,6 +20,7 @@ android/app/google-services.json
 # iOS / macOS
 ios/Pods/
 ios/.symlinks/
+ios/Runner/GoogleService-Info.plist
 **/ephemeral/
 
 # Secrets (Firebase service account, etc.)

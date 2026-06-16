@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
 import '../core/theme/notime_theme.dart';
 import '../services/app_state.dart';
+import '../services/camera_permission.dart';
 import '../widgets/notime_app_bar_title.dart';
 import '../widgets/notime_scaffold.dart';
 
@@ -20,6 +22,14 @@ class _StarterScreenState extends State<StarterScreen> {
   String? _lastScan;
 
   Future<void> _openScanner() async {
+    final granted = await ensureCameraPermission();
+    if (!mounted) return;
+    if (!granted) {
+      final denied = await Permission.camera.isPermanentlyDenied;
+      _showSnack(cameraPermissionMessage(denied));
+      return;
+    }
+
     final payload = await Navigator.of(context).push<String>(
       MaterialPageRoute(
         fullscreenDialog: true,
@@ -138,12 +148,19 @@ class _QrScannerPage extends StatefulWidget {
 }
 
 class _QrScannerPageState extends State<_QrScannerPage> {
-  final MobileScannerController _controller = MobileScannerController();
+  MobileScannerController? _controller;
   bool _handled = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = MobileScannerController();
+  }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
@@ -172,13 +189,37 @@ class _QrScannerPageState extends State<_QrScannerPage> {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: Stack(
+      body: _error != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  _error!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white70),
+                ),
+              ),
+            )
+          : Stack(
         fit: StackFit.expand,
         children: [
-          MobileScanner(
-            controller: _controller,
-            onDetect: _onDetect,
-          ),
+          if (_controller != null)
+            MobileScanner(
+              controller: _controller!,
+              onDetect: _onDetect,
+              errorBuilder: (context, error) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      'Camera unavailable: ${error.errorDetails?.message ?? error.errorCode.name}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  ),
+                );
+              },
+            ),
           Center(
             child: Container(
               width: 260,

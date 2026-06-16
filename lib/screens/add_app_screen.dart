@@ -2,10 +2,12 @@ import 'package:brick_bootstrap5_plus/brick_bootstrap5_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
 import '../core/theme/notime_theme.dart';
 import '../services/app_state.dart';
+import '../services/camera_permission.dart';
 import '../widgets/notime_scaffold.dart';
 
 /// Option 1 — connect another app via QR.
@@ -17,11 +19,35 @@ class AddAppScreen extends StatefulWidget {
 }
 
 class _AddAppScreenState extends State<AddAppScreen> {
-  final MobileScannerController _controller = MobileScannerController();
+  MobileScannerController? _controller;
+  bool _cameraReady = false;
+  String? _cameraError;
+
+  @override
+  void initState() {
+    super.initState();
+    _initCamera();
+  }
+
+  Future<void> _initCamera() async {
+    final granted = await ensureCameraPermission();
+    if (!mounted) return;
+    if (!granted) {
+      final denied = await Permission.camera.isPermanentlyDenied;
+      setState(() {
+        _cameraError = cameraPermissionMessage(denied);
+      });
+      return;
+    }
+    setState(() {
+      _controller = MobileScannerController();
+      _cameraReady = true;
+    });
+  }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
@@ -64,18 +90,39 @@ class _AddAppScreenState extends State<AddAppScreen> {
                 borderRadius: BorderRadius.circular(12),
                 child: AspectRatio(
                   aspectRatio: 4 / 3,
-                  child: MobileScanner(
-                    controller: _controller,
-                    onDetect: (capture) {
-                      for (final b in capture.barcodes) {
-                        final raw = b.rawValue;
-                        if (raw != null) {
-                          _connect(raw);
-                          return;
-                        }
-                      }
-                    },
-                  ),
+                  child: _cameraError != null
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Text(
+                              _cameraError!,
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        )
+                      : !_cameraReady || _controller == null
+                          ? const Center(child: CircularProgressIndicator())
+                          : MobileScanner(
+                              controller: _controller!,
+                              onDetect: (capture) {
+                                for (final b in capture.barcodes) {
+                                  final raw = b.rawValue;
+                                  if (raw != null) {
+                                    _connect(raw);
+                                    return;
+                                  }
+                                }
+                              },
+                              errorBuilder: (context, error) => Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Text(
+                                    'Camera unavailable: ${error.errorDetails?.message ?? error.errorCode.name}',
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ),
+                            ),
                 ),
               ),
             ),

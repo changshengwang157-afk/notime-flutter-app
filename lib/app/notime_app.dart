@@ -24,6 +24,10 @@ class _NotiMeAppState extends State<NotiMeApp> {
     _appState = AppState();
     _router = createRouter(_appState);
     _appState.setupPushHandlers();
+    _appState.setupDeepLinks((_) {
+      final slug = _appState.selectedApp?.id ?? 'thescratchify';
+      _router.go('/home/$slug');
+    });
   }
 
   @override

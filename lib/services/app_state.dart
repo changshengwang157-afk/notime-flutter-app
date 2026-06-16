@@ -13,6 +13,7 @@ import '../models/user_session.dart';
 import '../utils/external_link.dart';
 import 'push_service.dart';
 import 'session_storage.dart';
+import 'deep_link_service.dart';
 
 class AppState extends ChangeNotifier {
   AppState() {
@@ -31,6 +32,7 @@ class AppState extends ChangeNotifier {
   final SessionStorage _storage = SessionStorage();
   final NotiMeApiClient _api = NotiMeApiClient();
   late final PushService _push = PushService(api: _api);
+  final DeepLinkService _deepLinks = DeepLinkService();
 
   UserSession? _session;
   final List<ConnectedApp> _connectedApps = [];
@@ -188,6 +190,24 @@ class AppState extends ChangeNotifier {
     await _push.configure(onTap: _handlePushTap);
     await ready;
     await _push.processInitialMessage();
+  }
+
+  /// Universal / app links: https://heynotime.com/{slug}/{token}/
+  void setupDeepLinks(void Function(String payload) onPayload) {
+    _deepLinks.listen((payload) async {
+      if (isLoggedIn) {
+        onPayload(payload);
+        return;
+      }
+      final result = await loginFromQrPayload(payload);
+      if (result == LoginResult.success) {
+        onPayload(payload);
+      }
+    });
+  }
+
+  void dispose() {
+    _deepLinks.dispose();
   }
 
   Future<void> _handlePushTap(Map<String, String> data) async {

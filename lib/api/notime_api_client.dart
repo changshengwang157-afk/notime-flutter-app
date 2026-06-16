@@ -193,7 +193,11 @@ class NotiMeApiClient {
       final uri = Uri.parse(trimmed);
       final segments =
           uri.pathSegments.where((s) => s.isNotEmpty).toList();
+      // https://heynotime.com/{slug}/{token}/
       if (segments.length >= 2) {
+        if (segments.first == 'embed' && segments.length >= 3) {
+          return (slug: segments[1], token: segments[2]);
+        }
         return (slug: segments[0], token: segments[1]);
       }
     }

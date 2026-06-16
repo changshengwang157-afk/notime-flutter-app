@@ -100,8 +100,13 @@ class PushService {
 
   Future<void> _setupLocalNotifications() async {
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const ios = DarwinInitializationSettings(
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
+    );
     await _localNotifications.initialize(
-      const InitializationSettings(android: android),
+      const InitializationSettings(android: android, iOS: ios),
       onDidReceiveNotificationResponse: (response) {
         final payload = response.payload;
         if (payload != null) {
@@ -115,6 +120,11 @@ class PushService {
             AndroidFlutterLocalNotificationsPlugin>();
     await androidPlugin?.createNotificationChannel(_channel);
     await androidPlugin?.requestNotificationsPermission();
+
+    final iosPlugin = _localNotifications
+        .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin>();
+    await iosPlugin?.requestPermissions(alert: true, badge: true, sound: true);
   }
 
   Future<void> _showForegroundNotification(RemoteMessage message) async {
@@ -138,6 +148,11 @@ class PushService {
           enableVibration: true,
           sound: _alertSound,
           icon: '@mipmap/ic_launcher',
+        ),
+        iOS: const DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
         ),
       ),
       payload: payload,

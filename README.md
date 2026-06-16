@@ -6,7 +6,8 @@ Single Flutter project for the Scratchify / heynotime notification app demo.
 
 Spec & requirements: [`Scratchify-spec.txt`](Scratchify-spec.txt)  
 **v1 scope (client confirmations):** [`docs/v1-scope.md`](docs/v1-scope.md)  
-**Backend setup:** [`docs/BACKEND_SETUP.md`](docs/BACKEND_SETUP.md)
+**TestFlight (iOS):** [`docs/TESTFLIGHT_SETUP.md`](docs/TESTFLIGHT_SETUP.md)  
+**Firebase push:** [`docs/FIREBASE_SETUP.md`](docs/FIREBASE_SETUP.md)
 
 ---
 

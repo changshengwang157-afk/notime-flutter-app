@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 
 import '../core/theme/notime_theme.dart';
@@ -8,6 +7,7 @@ import '../services/app_state.dart';
 import '../services/camera_permission.dart';
 import '../widgets/notime_app_bar_title.dart';
 import '../widgets/notime_scaffold.dart';
+import '../widgets/qr_scanner_view.dart';
 
 /// QR login — matches https://heynotime.com/mobile-preview/starter-tab/
 class StarterScreen extends StatefulWidget {
@@ -147,56 +147,8 @@ class _QrScannerPage extends StatefulWidget {
 }
 
 class _QrScannerPageState extends State<_QrScannerPage> {
-  MobileScannerController? _controller;
-  bool _handled = false;
-  bool _starting = true;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _startCamera();
-  }
-
-  Future<void> _startCamera() async {
-    try {
-      final controller = MobileScannerController(
-        detectionSpeed: DetectionSpeed.noDuplicates,
-        facing: CameraFacing.back,
-      );
-      if (!mounted) {
-        await controller.dispose();
-        return;
-      }
-      setState(() {
-        _controller = controller;
-        _starting = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = 'Could not open camera. Check Settings → NotiMe → Camera.';
-        _starting = false;
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  void _onDetect(BarcodeCapture capture) {
-    if (_handled) return;
-    for (final barcode in capture.barcodes) {
-      final raw = barcode.rawValue;
-      if (raw != null) {
-        _handled = true;
-        Navigator.of(context).pop(raw);
-        break;
-      }
-    }
+  void _onScanned(String payload) {
+    Navigator.of(context).pop(payload);
   }
 
   @override
@@ -212,41 +164,10 @@ class _QrScannerPageState extends State<_QrScannerPage> {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: _error != null
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  _error!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white70),
-                ),
-              ),
-            )
-          : _starting
-              ? const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
-                )
-              : Stack(
+      body: Stack(
         fit: StackFit.expand,
         children: [
-          if (_controller != null)
-            MobileScanner(
-              controller: _controller!,
-              onDetect: _onDetect,
-              errorBuilder: (context, error) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      'Camera unavailable: ${error.errorDetails?.message ?? error.errorCode.name}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white70),
-                    ),
-                  ),
-                );
-              },
-            ),
+          QrScannerView(onScanned: _onScanned),
           Center(
             child: Container(
               width: 260,

@@ -188,7 +188,8 @@ Use a Mac, MacStadium, GitHub Actions `macos-latest`, or Codemagic.
 
 | Issue | Fix |
 |-------|-----|
-| App closes when tapping **Scan QR** | Rebuild with latest code + `ios/Podfile` (`PERMISSION_CAMERA=1`). On Mac: `cd ios && pod install`. Old builds called `permission_handler` without iOS Podfile config → instant crash. |
+| App closes ~1s after opening QR scanner | Upgrade `mobile_scanner` to **7.2.0+** (fixes native iOS crash in 7.0.x when processing camera frames). Rebuild IPA and upload new TestFlight build (`0.1.0+2` or higher). |
+| App closes when tapping **Scan QR** (instant) | Rebuild with `ios/Podfile` (`PERMISSION_CAMERA=1`). Run `cd ios && pod install` on Mac before `flutter build ipa`. |
 | Camera doesn’t open | Settings → NotiMe → Camera ON |
 | Invalid QR | Fresh pairing link; slug must match URL (`thescratchify-5`) |
 | No push on iOS | `GoogleService-Info.plist` + APNs key in Firebase + entitlements |

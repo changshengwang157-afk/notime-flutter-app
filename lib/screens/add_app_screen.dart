@@ -1,13 +1,12 @@
 import 'package:brick_bootstrap5_plus/brick_bootstrap5_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 
-import '../core/theme/notime_theme.dart';
 import '../services/app_state.dart';
 import '../services/camera_permission.dart';
 import '../widgets/notime_scaffold.dart';
+import '../widgets/qr_scanner_view.dart';
 
 /// Option 1 — connect another app via QR.
 class AddAppScreen extends StatefulWidget {
@@ -18,7 +17,6 @@ class AddAppScreen extends StatefulWidget {
 }
 
 class _AddAppScreenState extends State<AddAppScreen> {
-  MobileScannerController? _controller;
   bool _cameraReady = false;
   String? _cameraError;
 
@@ -38,31 +36,7 @@ class _AddAppScreenState extends State<AddAppScreen> {
       });
       return;
     }
-    try {
-      final controller = MobileScannerController(
-        detectionSpeed: DetectionSpeed.noDuplicates,
-        facing: CameraFacing.back,
-      );
-      if (!mounted) {
-        await controller.dispose();
-        return;
-      }
-      setState(() {
-        _controller = controller;
-        _cameraReady = true;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _cameraError = 'Could not open camera. Check Settings → NotiMe → Camera.';
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
+    setState(() => _cameraReady = true);
   }
 
   Future<void> _connect(String payload) async {
@@ -114,29 +88,9 @@ class _AddAppScreenState extends State<AddAppScreen> {
                             ),
                           ),
                         )
-                      : !_cameraReady || _controller == null
+                      : !_cameraReady
                           ? const Center(child: CircularProgressIndicator())
-                          : MobileScanner(
-                              controller: _controller!,
-                              onDetect: (capture) {
-                                for (final b in capture.barcodes) {
-                                  final raw = b.rawValue;
-                                  if (raw != null) {
-                                    _connect(raw);
-                                    return;
-                                  }
-                                }
-                              },
-                              errorBuilder: (context, error) => Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Text(
-                                    'Camera unavailable: ${error.errorDetails?.message ?? error.errorCode.name}',
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                              ),
-                            ),
+                          : QrScannerView(onScanned: _connect),
                 ),
               ),
             ),

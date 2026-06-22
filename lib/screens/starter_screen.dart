@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
 import '../core/theme/notime_theme.dart';
@@ -25,7 +24,7 @@ class _StarterScreenState extends State<StarterScreen> {
     final granted = await ensureCameraPermission();
     if (!mounted) return;
     if (!granted) {
-      final denied = await Permission.camera.isPermanentlyDenied;
+      final denied = await isCameraPermanentlyDenied();
       _showSnack(cameraPermissionMessage(denied));
       return;
     }
@@ -150,12 +149,36 @@ class _QrScannerPage extends StatefulWidget {
 class _QrScannerPageState extends State<_QrScannerPage> {
   MobileScannerController? _controller;
   bool _handled = false;
+  bool _starting = true;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _controller = MobileScannerController();
+    _startCamera();
+  }
+
+  Future<void> _startCamera() async {
+    try {
+      final controller = MobileScannerController(
+        detectionSpeed: DetectionSpeed.noDuplicates,
+        facing: CameraFacing.back,
+      );
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+      setState(() {
+        _controller = controller;
+        _starting = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Could not open camera. Check Settings → NotiMe → Camera.';
+        _starting = false;
+      });
+    }
   }
 
   @override
@@ -200,7 +223,11 @@ class _QrScannerPageState extends State<_QrScannerPage> {
                 ),
               ),
             )
-          : Stack(
+          : _starting
+              ? const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                )
+              : Stack(
         fit: StackFit.expand,
         children: [
           if (_controller != null)

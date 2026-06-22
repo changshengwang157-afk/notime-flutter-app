@@ -22,12 +22,42 @@ Everything implemented in the repo for iPhone testing. You still need **Apple De
 
 ---
 
-## 1. Apple Developer (client)
+## 1. Apple Developer account
 
 1. Enroll: [Apple Developer Program](https://developer.apple.com/programs/) ($99/year).
-2. App Store Connect → **Apps** → **+** → New App.
-3. Bundle ID: **`com.heynotime.notimeApp`** (must match Xcode).
-4. Note your **Team ID** (10 characters, e.g. `AB12CD34EF`).
+2. Note your **Team ID** (10 characters): [developer.apple.com/account](https://developer.apple.com/account) → **Membership details**.
+
+### 1a. Register Bundle ID **before** “New App”
+
+App Store Connect only shows bundle IDs that are **already registered**. If the dropdown is empty, do this first:
+
+1. Open [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/identifiers/list).
+2. **Identifiers** → **+** (blue button).
+3. Select **App IDs** → **Continue**.
+4. Type: **App** → **Continue**.
+5. Fill in:
+   - **Description:** `NotiMe`
+   - **Bundle ID:** **Explicit** → `com.heynotime.notimeApp` (must match Xcode in this repo).
+6. Capabilities (recommended for NotiMe):
+   - **Push Notifications**
+   - **Associated Domains** (for `applinks:heynotime.com`)
+7. **Register** → **Continue** → **Register**.
+
+Wait 1–2 minutes, then return to App Store Connect → **New App** — the bundle ID should appear in the dropdown.
+
+### 1b. Create app in App Store Connect
+
+1. [App Store Connect](https://appstoreconnect.apple.com) → **Apps** → **+** → **New App**.
+2. Use these values (do **not** put the bundle ID in the Name field):
+
+| Field | Value |
+|-------|--------|
+| **Platforms** | **iOS** only (unless you also ship macOS) |
+| **Name** | `NotiMe` (user-facing name; max 30 chars) |
+| **Primary Language** | English (U.S.) |
+| **Bundle ID** | `com.heynotime.notimeApp` (from dropdown after step 1a) |
+| **SKU** | `notime-app-001` (any unique string; never shown to users) |
+| **User Access** | Full Access |
 
 ---
 
@@ -158,6 +188,7 @@ Use a Mac, MacStadium, GitHub Actions `macos-latest`, or Codemagic.
 
 | Issue | Fix |
 |-------|-----|
+| App closes when tapping **Scan QR** | Rebuild with latest code + `ios/Podfile` (`PERMISSION_CAMERA=1`). On Mac: `cd ios && pod install`. Old builds called `permission_handler` without iOS Podfile config → instant crash. |
 | Camera doesn’t open | Settings → NotiMe → Camera ON |
 | Invalid QR | Fresh pairing link; slug must match URL (`thescratchify-5`) |
 | No push on iOS | `GoogleService-Info.plist` + APNs key in Firebase + entitlements |

@@ -2,7 +2,6 @@ import 'package:brick_bootstrap5_plus/brick_bootstrap5_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
 import '../core/theme/notime_theme.dart';
@@ -33,16 +32,31 @@ class _AddAppScreenState extends State<AddAppScreen> {
     final granted = await ensureCameraPermission();
     if (!mounted) return;
     if (!granted) {
-      final denied = await Permission.camera.isPermanentlyDenied;
+      final denied = await isCameraPermanentlyDenied();
       setState(() {
         _cameraError = cameraPermissionMessage(denied);
       });
       return;
     }
-    setState(() {
-      _controller = MobileScannerController();
-      _cameraReady = true;
-    });
+    try {
+      final controller = MobileScannerController(
+        detectionSpeed: DetectionSpeed.noDuplicates,
+        facing: CameraFacing.back,
+      );
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+      setState(() {
+        _controller = controller;
+        _cameraReady = true;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _cameraError = 'Could not open camera. Check Settings → NotiMe → Camera.';
+      });
+    }
   }
 
   @override

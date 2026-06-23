@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../api/notime_api_client.dart';
 import '../core/theme/notime_theme.dart';
 import '../services/app_state.dart';
 import '../services/camera_permission.dart';
@@ -40,6 +42,16 @@ class _StarterScreenState extends State<StarterScreen> {
     }
   }
 
+  Future<void> _openPasteUrlDialog() async {
+    final payload = await showDialog<String>(
+      context: context,
+      builder: (_) => const _PastePairingUrlDialog(),
+    );
+    if (payload != null && payload.isNotEmpty && mounted) {
+      await _handlePayload(payload);
+    }
+  }
+
   Future<void> _handlePayload(String payload) async {
     if (_lastScan == payload) return;
     _lastScan = payload;
@@ -56,8 +68,37 @@ class _StarterScreenState extends State<StarterScreen> {
       case LoginResult.accountNotFound:
         context.push('/account-not-found');
       case LoginResult.invalidQr:
-        _showSnack('Invalid QR code. Please try again.');
+        await _showInvalidQrDialog();
         Future.delayed(const Duration(seconds: 2), () => _lastScan = null);
+    }
+  }
+
+  Future<void> _showInvalidQrDialog() async {
+    final action = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Invalid QR code'),
+        content: const Text(
+          'This QR code is not a valid NotiMe pairing link. '
+          'Get a fresh link from Dashboard → My Users, or paste the URL manually.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'retry'),
+            child: const Text('Scan again'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, 'paste'),
+            child: const Text('Paste URL'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || action == null) return;
+    if (action == 'paste') {
+      await _openPasteUrlDialog();
+    } else if (action == 'retry') {
+      await _openScanner();
     }
   }
 
@@ -127,6 +168,16 @@ class _StarterScreenState extends State<StarterScreen> {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    TextButton.icon(
+                      onPressed: _openPasteUrlDialog,
+                      icon: const Icon(Icons.link, size: 20),
+                      label: const Text('Paste pairing URL'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: NotiMeColors.textSecondary,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -163,6 +214,22 @@ class _QrScannerPageState extends State<_QrScannerPage> {
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.of(context).pop(),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.link),
+            tooltip: 'Paste pairing URL',
+            onPressed: () async {
+              final navigator = Navigator.of(context);
+              final payload = await showDialog<String>(
+                context: context,
+                builder: (_) => const _PastePairingUrlDialog(),
+              );
+              if (payload != null && payload.isNotEmpty && mounted) {
+                navigator.pop(payload);
+              }
+            },
+          ),
+        ],
       ),
       body: Stack(
         fit: StackFit.expand,
@@ -180,6 +247,103 @@ class _QrScannerPageState extends State<_QrScannerPage> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Manual pairing fallback when the camera scanner is unavailable (e.g. iOS TestFlight debug).
+class _PastePairingUrlDialog extends StatefulWidget {
+  const _PastePairingUrlDialog();
+
+  @override
+  State<_PastePairingUrlDialog> createState() => _PastePairingUrlDialogState();
+}
+
+class _PastePairingUrlDialogState extends State<_PastePairingUrlDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _pasteFromClipboard();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pasteFromClipboard() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text?.trim();
+    if (text != null && text.isNotEmpty && mounted) {
+      setState(() => _controller.text = text);
+    }
+  }
+
+  void _submit() {
+    final text = _controller.text.trim();
+    if (parsePairingPayload(text) == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Enter a valid pairing URL from heynotime.com (Dashboard → My Users).',
+          ),
+        ),
+      );
+      return;
+    }
+    Navigator.of(context).pop(text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Paste pairing URL'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Copy the link from Dashboard → My Users, paste it below, then tap Connect.',
+            style: TextStyle(
+              fontSize: 14,
+              color: NotiMeColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controller,
+            decoration: InputDecoration(
+              hintText: 'https://heynotime.com/thescratchify-5/...',
+              border: const OutlineInputBorder(),
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.content_paste),
+                onPressed: _pasteFromClipboard,
+                tooltip: 'Paste from clipboard',
+              ),
+            ),
+            keyboardType: TextInputType.url,
+            autocorrect: false,
+            enableSuggestions: false,
+            maxLines: 3,
+            minLines: 1,
+            onSubmitted: (_) => _submit(),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('Connect'),
+        ),
+      ],
     );
   }
 }

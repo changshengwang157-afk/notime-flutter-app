@@ -3,9 +3,9 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-/// Requests camera access before opening [mobile_scanner].
+/// Requests camera access before opening the QR scanner.
 ///
-/// On iOS, [mobile_scanner] shows the system dialog using [NSCameraUsageDescription].
+/// On iOS the [camera] plugin shows the system dialog via [NSCameraUsageDescription].
 /// Calling [Permission.camera] without Podfile `PERMISSION_CAMERA=1` can crash release builds.
 Future<bool> ensureCameraPermission() async {
   if (!kIsWeb && Platform.isIOS) {

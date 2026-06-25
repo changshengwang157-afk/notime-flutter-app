@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../services/app_state.dart';
 import '../services/camera_permission.dart';
 import '../widgets/notime_scaffold.dart';
+import '../widgets/paste_pairing_url_dialog.dart';
 import '../widgets/qr_scanner_view.dart';
 
 /// Option 1 — connect another app via QR.
@@ -57,6 +58,16 @@ class _AddAppScreenState extends State<AddAppScreen> {
     }
   }
 
+  Future<void> _openPasteUrlDialog() async {
+    final payload = await showDialog<String>(
+      context: context,
+      builder: (_) => const PastePairingUrlDialog(),
+    );
+    if (payload != null && payload.isNotEmpty && mounted) {
+      await _connect(payload);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return NotiMePage(
@@ -73,6 +84,14 @@ class _AddAppScreenState extends State<AddAppScreen> {
               ),
             ),
             BCol(
+              classNames: 'col-12 mt-3',
+              child: TextButton.icon(
+                onPressed: _openPasteUrlDialog,
+                icon: const Icon(Icons.link, size: 20),
+                label: const Text('Paste pairing URL'),
+              ),
+            ),
+            BCol(
               classNames: 'col-12 mt-4',
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
@@ -82,9 +101,19 @@ class _AddAppScreenState extends State<AddAppScreen> {
                       ? Center(
                           child: Padding(
                             padding: const EdgeInsets.all(16),
-                            child: Text(
-                              _cameraError!,
-                              textAlign: TextAlign.center,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  _cameraError!,
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 12),
+                                FilledButton(
+                                  onPressed: _openPasteUrlDialog,
+                                  child: const Text('Paste pairing URL'),
+                                ),
+                              ],
                             ),
                           ),
                         )

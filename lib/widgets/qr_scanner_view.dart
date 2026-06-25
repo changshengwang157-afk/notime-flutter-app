@@ -106,7 +106,7 @@ class _QrScannerViewState extends State<QrScannerView>
       if (!mounted) return;
       setState(() {
         _starting = false;
-        _error = 'Could not open the camera. Check Settings → NotiMe → Camera.';
+        _error = 'Could not open the camera. Use Paste pairing URL on the previous screen.';
       });
     }
   }
@@ -168,7 +168,12 @@ class _QrScannerViewState extends State<QrScannerView>
         if (raw != null && raw.isNotEmpty) {
           _handled = true;
           await _stopImageStream();
-          widget.onScanned(raw);
+          if (mounted) {
+            // Defer pop until after the current frame (avoids iOS route crash).
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) widget.onScanned(raw);
+            });
+          }
           return;
         }
       }

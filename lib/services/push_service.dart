@@ -65,9 +65,20 @@ class PushService {
   Future<void> registerDevice() async {
     if (!_configured) return;
     try {
+      // iOS: FCM needs an APNS token before getToken() returns a value.
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        for (var attempt = 0; attempt < 10; attempt++) {
+          final apns = await FirebaseMessaging.instance.getAPNSToken();
+          if (apns != null) break;
+          await Future<void>.delayed(const Duration(milliseconds: 400));
+        }
+      }
+
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) {
         await _registerToken(token);
+      } else {
+        debugPrint('FCM getToken returned null (${defaultTargetPlatform.name})');
       }
     } catch (e) {
       debugPrint('FCM token register failed: $e');

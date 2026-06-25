@@ -7,6 +7,7 @@ import '../services/app_state.dart';
 import '../services/camera_permission.dart';
 import '../widgets/notime_app_bar_title.dart';
 import '../widgets/notime_scaffold.dart';
+import '../widgets/paste_pairing_url_dialog.dart';
 import '../widgets/qr_scanner_view.dart';
 
 /// QR login — matches https://heynotime.com/mobile-preview/starter-tab/
@@ -40,6 +41,16 @@ class _StarterScreenState extends State<StarterScreen> {
     }
   }
 
+  Future<void> _openPasteUrlDialog() async {
+    final payload = await showDialog<String>(
+      context: context,
+      builder: (_) => const PastePairingUrlDialog(),
+    );
+    if (payload != null && payload.isNotEmpty && mounted) {
+      await _handlePayload(payload);
+    }
+  }
+
   Future<void> _handlePayload(String payload) async {
     if (_lastScan == payload) return;
     _lastScan = payload;
@@ -62,28 +73,32 @@ class _StarterScreenState extends State<StarterScreen> {
   }
 
   Future<void> _showInvalidQrDialog() async {
-    final retry = await showDialog<bool>(
+    final action = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Invalid QR code'),
         content: const Text(
           'This QR code is not a valid NotiMe pairing link. '
-          'Get a fresh QR code from Dashboard → My Users and try again.',
+          'Get a fresh link from Dashboard → My Users, or paste the URL manually.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(context, 'retry'),
             child: const Text('Scan again'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'paste'),
+            child: const Text('Paste URL'),
           ),
         ],
       ),
     );
-    if (!mounted || retry != true) return;
-    await _openScanner();
+    if (!mounted || action == null) return;
+    if (action == 'paste') {
+      await _openPasteUrlDialog();
+    } else if (action == 'retry') {
+      await _openScanner();
+    }
   }
 
   void _showSnack(String message) {
@@ -152,6 +167,16 @@ class _StarterScreenState extends State<StarterScreen> {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    TextButton.icon(
+                      onPressed: _openPasteUrlDialog,
+                      icon: const Icon(Icons.link, size: 20),
+                      label: const Text('Paste pairing URL'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: NotiMeColors.textSecondary,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -179,6 +204,22 @@ class _QrScannerPage extends StatelessWidget {
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.of(context).pop(),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.link),
+            tooltip: 'Paste pairing URL',
+            onPressed: () async {
+              final navigator = Navigator.of(context);
+              final payload = await showDialog<String>(
+                context: context,
+                builder: (_) => const PastePairingUrlDialog(),
+              );
+              if (payload != null && payload.isNotEmpty) {
+                navigator.pop(payload);
+              }
+            },
+          ),
+        ],
       ),
       body: Stack(
         fit: StackFit.expand,

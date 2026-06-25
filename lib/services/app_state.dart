@@ -156,6 +156,7 @@ class AppState extends ChangeNotifier {
 
   Future<ConnectAppResult> connectAppFromQr(String raw) async {
     if (!isLoggedIn) return ConnectAppResult.notLoggedIn;
+
     final parsed = parsePairingPayload(raw);
     if (parsed == null) return ConnectAppResult.invalidQr;
 

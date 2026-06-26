@@ -225,7 +225,10 @@ class _QrScannerPage extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           QrScannerView(
-            onScanned: (payload) => Navigator.of(context).pop(payload),
+            onScanned: (payload) {
+              if (!context.mounted) return;
+              Navigator.of(context).pop(payload);
+            },
           ),
           Center(
             child: Container(

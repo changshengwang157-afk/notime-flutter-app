@@ -188,7 +188,7 @@ Use a Mac, MacStadium, GitHub Actions `macos-latest`, or Codemagic.
 
 | Issue | Fix |
 |-------|-----|
-| App closes when opening QR scanner | Rebuild with **camera + ML Kit** scanner (build `0.1.0+4+`). On Mac: `cd ios && rm -rf Pods Podfile.lock && pod install`. Uses `ResolutionPreset.high` for iPhone 17 Pro. |
+| App closes when opening QR scanner | Rebuild **0.1.0+5+** — scanner uses `takePicture` (not live image stream) to avoid iOS memory crash with ML Kit. Clean pods: `cd ios && rm -rf Pods Podfile.lock && pod install`. |
 | Paste pairing URL | Fallback on starter screen if camera still fails on a specific device |
 | Camera doesn’t open | Settings → NotiMe → Camera ON |
 | Invalid QR | Fresh pairing link; slug must match URL (`thescratchify-5`) |

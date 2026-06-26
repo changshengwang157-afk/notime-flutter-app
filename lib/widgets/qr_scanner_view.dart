@@ -1,16 +1,14 @@
 import 'dart:async';
-import 'dart:io' show Platform;
+import 'dart:io' show File, Platform;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
 
-import '../utils/camera_image_utils.dart';
-
-/// Cross-device QR scanner using [camera] + Google ML Kit.
+/// Cross-device QR scanner using [camera] preview + periodic [takePicture].
 ///
-/// Uses [ResolutionPreset.high] (not `max`) so iPhone 17 Pro / iOS 26 avoid
-/// the unsupported `btp2` pixel-format crash seen with other scanner plugins.
+/// Avoids [CameraController.startImageStream] on iOS, which can OOM-crash in
+/// release/TestFlight builds when combined with ML Kit frame processing.
 class QrScannerView extends StatefulWidget {
   const QrScannerView({
     super.key,
@@ -27,13 +25,13 @@ class _QrScannerViewState extends State<QrScannerView>
     with WidgetsBindingObserver {
   CameraController? _controller;
   BarcodeScanner? _scanner;
+  Timer? _scanTimer;
   bool _handled = false;
-  bool _processing = false;
+  bool _scanning = false;
   bool _starting = true;
   String? _error;
-  DateTime _lastFrameAt = DateTime.fromMillisecondsSinceEpoch(0);
 
-  static const _frameInterval = Duration(milliseconds: 250);
+  static const _scanInterval = Duration(milliseconds: 900);
 
   @override
   void initState() {
@@ -46,21 +44,27 @@ class _QrScannerViewState extends State<QrScannerView>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    unawaited(_stopCamera());
+    _scanTimer?.cancel();
     _scanner?.close();
+    _scanner = null;
+    final controller = _controller;
+    _controller = null;
+    if (controller != null) {
+      unawaited(controller.dispose());
+    }
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final controller = _controller;
-    if (controller == null || !controller.value.isInitialized) return;
-
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
-      unawaited(_stopImageStream());
-    } else if (state == AppLifecycleState.resumed && !_handled && !_starting) {
-      unawaited(_resumeImageStream());
+      _scanTimer?.cancel();
+    } else if (state == AppLifecycleState.resumed &&
+        !_handled &&
+        !_starting &&
+        _controller != null) {
+      _startScanLoop();
     }
   }
 
@@ -76,22 +80,20 @@ class _QrScannerViewState extends State<QrScannerView>
         orElse: () => cameras.first,
       );
 
+      // medium on iOS keeps memory low on iPhone 17 Pro; high is fine on Android.
+      final preset =
+          Platform.isIOS ? ResolutionPreset.medium : ResolutionPreset.high;
+
       final controller = CameraController(
         camera,
-        ResolutionPreset.high,
+        preset,
         enableAudio: false,
         imageFormatGroup: Platform.isAndroid
-            ? ImageFormatGroup.nv21
+            ? ImageFormatGroup.jpeg
             : ImageFormatGroup.bgra8888,
       );
 
       await controller.initialize();
-      if (!mounted) {
-        await controller.dispose();
-        return;
-      }
-
-      await controller.startImageStream(_onCameraFrame);
       if (!mounted) {
         await controller.dispose();
         return;
@@ -102,85 +104,72 @@ class _QrScannerViewState extends State<QrScannerView>
         _starting = false;
         _error = null;
       });
+
+      _startScanLoop();
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _starting = false;
-        _error = 'Could not open the camera. Use Paste pairing URL on the previous screen.';
+        _error =
+            'Could not open the camera. Check Settings → NotiMe → Camera.';
       });
     }
   }
 
-  Future<void> _stopImageStream() async {
-    final controller = _controller;
-    if (controller != null && controller.value.isStreamingImages) {
-      try {
-        await controller.stopImageStream();
-      } catch (_) {}
-    }
+  void _startScanLoop() {
+    _scanTimer?.cancel();
+    if (_handled || _controller == null) return;
+
+    _scanTimer = Timer.periodic(_scanInterval, (_) {
+      unawaited(_scanOnce());
+    });
+    unawaited(_scanOnce());
   }
 
-  Future<void> _resumeImageStream() async {
+  Future<void> _scanOnce() async {
+    if (_handled || _scanning || !mounted) return;
     final controller = _controller;
-    if (controller == null || _handled) return;
-    if (controller.value.isStreamingImages) return;
+    if (controller == null || !controller.value.isInitialized) return;
+    if (controller.value.isTakingPicture) return;
+
+    _scanning = true;
+    XFile? photo;
     try {
-      await controller.startImageStream(_onCameraFrame);
-    } catch (_) {}
-  }
-
-  Future<void> _stopCamera() async {
-    final controller = _controller;
-    _controller = null;
-    if (controller == null) return;
-    try {
-      if (controller.value.isStreamingImages) {
-        await controller.stopImageStream();
-      }
-    } catch (_) {}
-    try {
-      await controller.dispose();
-    } catch (_) {}
-  }
-
-  Future<void> _onCameraFrame(CameraImage image) async {
-    if (_handled || _processing || _scanner == null) return;
-
-    final now = DateTime.now();
-    if (now.difference(_lastFrameAt) < _frameInterval) return;
-    _lastFrameAt = now;
-
-    final controller = _controller;
-    if (controller == null) return;
-
-    final inputImage = inputImageFromCameraImage(
-      image: image,
-      camera: controller.description,
-      controller: controller,
-    );
-    if (inputImage == null) return;
-
-    _processing = true;
-    try {
+      photo = await controller.takePicture();
+      final inputImage = InputImage.fromFilePath(photo.path);
       final barcodes = await _scanner!.processImage(inputImage);
       for (final barcode in barcodes) {
         final raw = barcode.rawValue;
         if (raw != null && raw.isNotEmpty) {
           _handled = true;
-          await _stopImageStream();
+          _scanTimer?.cancel();
+          await _disposeController();
           if (mounted) {
-            // Defer pop until after the current frame (avoids iOS route crash).
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) widget.onScanned(raw);
-            });
+            widget.onScanned(raw);
           }
           return;
         }
       }
     } catch (_) {
-      // Skip bad frames; keep the preview running.
+      // Ignore single-frame failures; keep scanning.
     } finally {
-      _processing = false;
+      if (photo != null) {
+        try {
+          await File(photo.path).delete();
+        } catch (_) {}
+      }
+      _scanning = false;
+    }
+  }
+
+  Future<void> _disposeController() async {
+    _scanTimer?.cancel();
+    final controller = _controller;
+    _controller = null;
+    if (controller != null) {
+      try {
+        await controller.dispose();
+      } catch (_) {}
     }
   }
 

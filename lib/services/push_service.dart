@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -186,7 +187,7 @@ class PushService {
     try {
       final raw = jsonDecode(payload) as Map<String, dynamic>;
       final data = raw.map((k, v) => MapEntry(k, '$v'));
-      _dispatchTap(data);
+      unawaited(_dispatchTap(data));
     } catch (e) {
       debugPrint('Invalid notification payload: $e');
     }

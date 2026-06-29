@@ -12,22 +12,65 @@ import '../widgets/notification_image.dart';
 import '../widgets/notime_scaffold.dart';
 
 /// https://heynotime.com/mobile-preview/notification-details/
-class NotificationDetailScreen extends StatelessWidget {
+class NotificationDetailScreen extends StatefulWidget {
   const NotificationDetailScreen({super.key, required this.notificationId});
 
   final String notificationId;
 
   @override
+  State<NotificationDetailScreen> createState() =>
+      _NotificationDetailScreenState();
+}
+
+class _NotificationDetailScreenState extends State<NotificationDetailScreen> {
+  bool _loading = false;
+  String? _loadError;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadIfNeeded());
+  }
+
+  Future<void> _loadIfNeeded() async {
+    final state = context.read<AppState>();
+    if (state.notificationById(widget.notificationId) != null) return;
+
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
+
+    try {
+      await state.fetchAndCacheNotification(widget.notificationId);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadError = 'Could not load this notification.');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    final item = state.notificationById(notificationId);
+    final item = state.notificationById(widget.notificationId);
     final app =
         item != null ? state.connectedAppById(item.appId) : state.selectedApp;
+
+    if (_loading) {
+      return NotiMePage(
+        appBar: AppBar(title: Text('Notification')),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
     if (item == null) {
       return NotiMePage(
         appBar: AppBar(title: const Text('Notification')),
-        body: const Center(child: Text('Notification not found.')),
+        body: Center(
+          child: Text(_loadError ?? 'Notification not found.'),
+        ),
       );
     }
 

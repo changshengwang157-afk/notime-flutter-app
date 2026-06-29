@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../api/notime_api_client.dart';
 import '../config/api_config.dart';
@@ -10,10 +9,11 @@ import '../models/connected_app.dart';
 import '../models/notification_item.dart';
 import '../models/sent_notification.dart';
 import '../models/user_session.dart';
-import '../utils/external_link.dart';
 import 'push_service.dart';
 import 'session_storage.dart';
 import 'deep_link_service.dart';
+
+typedef PushNavigateCallback = void Function(String location);
 
 class AppState extends ChangeNotifier {
   AppState() {
@@ -33,6 +33,8 @@ class AppState extends ChangeNotifier {
   final NotiMeApiClient _api = NotiMeApiClient();
   late final PushService _push = PushService(api: _api);
   final DeepLinkService _deepLinks = DeepLinkService();
+  PushNavigateCallback? _onPushNavigate;
+  Map<String, String>? _pendingPushData;
 
   UserSession? _session;
   final List<ConnectedApp> _connectedApps = [];
@@ -129,6 +131,7 @@ class AppState extends ChangeNotifier {
       _selectedAppId = result.integration.id;
       await refreshFromApi();
       await _push.registerDevice();
+      await _processPendingPush();
       return LoginResult.success;
     } on NotiMeApiException catch (e) {
       _error = e.message;
@@ -194,8 +197,11 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Called once from [NotiMeApp] — wires FCM tap → scratch card.
-  Future<void> setupPushHandlers() async {
+  /// Called once from [NotiMeApp] — wires FCM tap → in-app notification detail.
+  Future<void> setupPushHandlers({
+    required PushNavigateCallback onNavigate,
+  }) async {
+    _onPushNavigate = onNavigate;
     await _push.configure(onTap: _handlePushTap);
     await ready;
     await _push.processInitialMessage();
@@ -215,38 +221,69 @@ class AppState extends ChangeNotifier {
     });
   }
 
+  @override
   void dispose() {
     _deepLinks.dispose();
+    super.dispose();
   }
 
   Future<void> _handlePushTap(Map<String, String> data) async {
-    if (!isLoggedIn || ApiConfig.useMockData) return;
+    if (ApiConfig.useMockData) return;
 
-    final deliveryId = data['delivery_id']?.trim();
-    if (deliveryId == null || deliveryId.isEmpty) return;
-
-    var item = notificationById(deliveryId);
-    if (item == null) {
-      try {
-        item = await _api.fetchNotificationDetail(deliveryId);
-        _cacheNotification(item);
-        notifyListeners();
-      } catch (e) {
-        debugPrint('Push tap: could not load $deliveryId: $e');
-        return;
-      }
+    if (!isLoggedIn) {
+      _pendingPushData = Map<String, String>.from(data);
+      return;
     }
 
-    if (item.isExpired) return;
+    await _openNotificationFromPush(data);
+  }
 
-    final appName = connectedAppById(item.appId)?.displayName ?? 'App';
-    final token = _session!.userToken;
-    final uri = appendUserQuery(item.externalUrl, token);
+  Future<void> _processPendingPush() async {
+    final pending = _pendingPushData;
+    if (pending == null || !isLoggedIn) return;
+    _pendingPushData = null;
+    await _openNotificationFromPush(pending);
+  }
 
-    await markLinkClicked(item.id, item.title, appName);
+  /// Loads a notification from the API and caches it for the inbox + detail screen.
+  Future<NotificationItem> fetchAndCacheNotification(String deliveryId) async {
+    final item = await _api.fetchNotificationDetail(deliveryId);
+    _cacheNotification(item);
+    notifyListeners();
+    return item;
+  }
 
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+  Future<void> _openNotificationFromPush(Map<String, String> data) async {
+    final deliveryId = data['delivery_id']?.trim();
+    final slug = data['integration_slug']?.trim();
+
+    if (deliveryId == null || deliveryId.isEmpty) {
+      if (slug != null && slug.isNotEmpty) {
+        _selectedAppId = slug;
+        await refreshFromApi();
+        _onPushNavigate?.call('/home/$slug');
+      }
+      return;
+    }
+
+    try {
+      if (slug != null && slug.isNotEmpty) {
+        _selectedAppId = slug;
+      }
+
+      await fetchAndCacheNotification(deliveryId);
+      await refreshFromApi();
+
+      _onPushNavigate?.call('/notification/$deliveryId');
+    } catch (e) {
+      debugPrint('Push tap: could not open $deliveryId: $e');
+      try {
+        await refreshFromApi();
+      } catch (_) {}
+      final fallbackSlug = slug ?? selectedApp?.id;
+      if (fallbackSlug != null) {
+        _onPushNavigate?.call('/home/$fallbackSlug');
+      }
     }
   }
 
@@ -289,6 +326,7 @@ class AppState extends ChangeNotifier {
     try {
       await refreshFromApi();
       await _push.registerDevice();
+      await _processPendingPush();
       notifyListeners();
     } catch (_) {
       await logout();

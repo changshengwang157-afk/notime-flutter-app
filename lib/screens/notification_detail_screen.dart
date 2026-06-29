@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../config/api_config.dart';
 import '../core/theme/notime_theme.dart';
 import '../models/notification_item.dart';
 import '../services/app_state.dart';
@@ -12,25 +13,93 @@ import '../widgets/notification_image.dart';
 import '../widgets/notime_scaffold.dart';
 
 /// https://heynotime.com/mobile-preview/notification-details/
-class NotificationDetailScreen extends StatelessWidget {
+class NotificationDetailScreen extends StatefulWidget {
   const NotificationDetailScreen({super.key, required this.notificationId});
 
   final String notificationId;
 
   @override
+  State<NotificationDetailScreen> createState() =>
+      _NotificationDetailScreenState();
+}
+
+class _NotificationDetailScreenState extends State<NotificationDetailScreen> {
+  bool _loading = false;
+  String? _loadError;
+
+  @override
+  void initState() {
+    super.initState();
+    _ensureLoaded();
+  }
+
+  Future<void> _ensureLoaded() async {
+    final state = context.read<AppState>();
+    if (state.notificationById(widget.notificationId) != null) return;
+    if (ApiConfig.useMockData) return;
+
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
+
+    try {
+      await state.loadNotificationDetail(widget.notificationId);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _loadError = 'Could not load this notification.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    final item = state.notificationById(notificationId);
+    final item = state.notificationById(widget.notificationId);
     final app =
         item != null ? state.connectedAppById(item.appId) : state.selectedApp;
+
+    if (_loading && item == null) {
+      return NotiMePage(
+        appBar: AppBar(title: const Text('Notification')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
 
     if (item == null) {
       return NotiMePage(
         appBar: AppBar(title: const Text('Notification')),
-        body: const Center(child: Text('Notification not found.')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              _loadError ?? 'Notification not found.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
       );
     }
 
+    return _NotificationDetailBody(item: item, appName: app?.displayName ?? 'App');
+  }
+}
+
+class _NotificationDetailBody extends StatelessWidget {
+  const _NotificationDetailBody({
+    required this.item,
+    required this.appName,
+  });
+
+  final NotificationItem item;
+  final String appName;
+
+  @override
+  Widget build(BuildContext context) {
     final expired = item.isExpired;
 
     return NotiMePage(
@@ -79,7 +148,8 @@ class NotificationDetailScreen extends StatelessWidget {
                     : 'Valid until ${DateFormat.yMMMd().add_Hm().format(item.expiresAt!)}',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: expired ? NotiMeColors.danger : NotiMeColors.textSecondary,
+                  color:
+                      expired ? NotiMeColors.danger : NotiMeColors.textSecondary,
                 ),
               ),
             ],
@@ -99,7 +169,7 @@ class NotificationDetailScreen extends StatelessWidget {
               child: ElevatedButton.icon(
                 onPressed: expired
                     ? null
-                    : () => _openExternalLink(context, item, app?.displayName ?? 'App'),
+                    : () => _openExternalLink(context, item, appName),
                 icon: const Icon(Icons.open_in_new),
                 label: const Text('Go to Link'),
               ),

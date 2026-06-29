@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../api/notime_api_client.dart';
 import '../config/api_config.dart';
@@ -10,10 +9,12 @@ import '../models/connected_app.dart';
 import '../models/notification_item.dart';
 import '../models/sent_notification.dart';
 import '../models/user_session.dart';
-import '../utils/external_link.dart';
 import 'push_service.dart';
 import 'session_storage.dart';
 import 'deep_link_service.dart';
+
+/// Opens notification detail after a push tap (`deliveryId`, optional `appId`).
+typedef PushOpenCallback = void Function(String deliveryId, String? appId);
 
 class AppState extends ChangeNotifier {
   AppState() {
@@ -33,6 +34,8 @@ class AppState extends ChangeNotifier {
   final NotiMeApiClient _api = NotiMeApiClient();
   late final PushService _push = PushService(api: _api);
   final DeepLinkService _deepLinks = DeepLinkService();
+
+  PushOpenCallback? _onPushOpen;
 
   UserSession? _session;
   final List<ConnectedApp> _connectedApps = [];
@@ -186,8 +189,11 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Called once from [NotiMeApp] — wires FCM tap → scratch card.
-  Future<void> setupPushHandlers() async {
+  /// Called once from [NotiMeApp] — wires FCM tap → notification detail.
+  Future<void> setupPushHandlers({
+    required PushOpenCallback onOpenNotification,
+  }) async {
+    _onPushOpen = onOpenNotification;
     await _push.configure(onTap: _handlePushTap);
     await ready;
     await _push.processInitialMessage();
@@ -212,34 +218,50 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _handlePushTap(Map<String, String> data) async {
-    if (!isLoggedIn || ApiConfig.useMockData) return;
+    if (!isLoggedIn) return;
 
     final deliveryId = data['delivery_id']?.trim();
     if (deliveryId == null || deliveryId.isEmpty) return;
 
-    var item = notificationById(deliveryId);
-    if (item == null) {
-      try {
+    final slug = data['integration_slug']?.trim();
+
+    if (ApiConfig.useMockData) {
+      _onPushOpen?.call(deliveryId, slug);
+      return;
+    }
+
+    String? appId = slug;
+    try {
+      await refreshFromApi();
+      var item = notificationById(deliveryId);
+      if (item == null) {
         item = await _api.fetchNotificationDetail(deliveryId);
         _cacheNotification(item);
         notifyListeners();
-      } catch (e) {
-        debugPrint('Push tap: could not load $deliveryId: $e');
-        return;
+      }
+      appId = item.appId;
+      if (appId.isNotEmpty) {
+        _selectedAppId = appId;
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Push tap: refresh/load failed for $deliveryId: $e');
+      if (slug != null && slug.isNotEmpty) {
+        _selectedAppId = slug;
+        notifyListeners();
+        appId = slug;
       }
     }
 
-    if (item.isExpired) return;
+    _onPushOpen?.call(deliveryId, appId);
+  }
 
-    final appName = connectedAppById(item.appId)?.displayName ?? 'App';
-    final token = _session!.userToken;
-    final uri = appendUserQuery(item.externalUrl, token);
-
-    await markLinkClicked(item.id, item.title, appName);
-
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+  /// Loads a single delivery when opening detail from a push (not yet in cache).
+  Future<void> loadNotificationDetail(String deliveryId) async {
+    if (ApiConfig.useMockData) return;
+    final item = await _api.fetchNotificationDetail(deliveryId);
+    _cacheNotification(item);
+    notifyListeners();
   }
 
   void _cacheNotification(NotificationItem item) {

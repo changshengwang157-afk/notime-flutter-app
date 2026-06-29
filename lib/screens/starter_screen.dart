@@ -69,6 +69,10 @@ class _StarterScreenState extends State<StarterScreen> {
       case LoginResult.invalidQr:
         await _showInvalidQrDialog();
         Future.delayed(const Duration(seconds: 2), () => _lastScan = null);
+      case LoginResult.networkError:
+        _showSnack(context.read<AppState>().error ??
+            'Could not reach the server. Check your connection and try again.');
+        Future.delayed(const Duration(seconds: 2), () => _lastScan = null);
     }
   }
 

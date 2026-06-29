@@ -49,6 +49,8 @@ class _AddAppScreenState extends State<AddAppScreen> {
       ConnectAppResult.alreadyConnected => 'This app is already connected.',
       ConnectAppResult.invalidQr => 'Invalid QR code.',
       ConnectAppResult.notLoggedIn => 'Please log in first.',
+      ConnectAppResult.networkError =>
+        'Could not reach the server. Check your connection and try again.',
     };
 
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));

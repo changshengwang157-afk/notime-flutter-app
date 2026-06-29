@@ -3,7 +3,8 @@
 abstract final class ApiConfig {
   static const String baseUrl = String.fromEnvironment(
     'NOTIME_API_BASE',
-    defaultValue: 'http://10.0.2.2:8000',
+    // defaultValue: 'http://10.0.2.2:8000',
+    defaultValue: 'https://heynotime.com',
   );
 
   /// When true, uses local mock data (no Django required).

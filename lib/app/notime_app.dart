@@ -23,22 +23,10 @@ class _NotiMeAppState extends State<NotiMeApp> {
     super.initState();
     _appState = AppState();
     _router = createRouter(_appState);
-    _appState.setupPushHandlers(onOpenNotification: _openNotificationFromPush);
+    _appState.setupPushHandlers();
     _appState.setupDeepLinks((_) {
       final slug = _appState.selectedApp?.id ?? 'thescratchify';
       _router.go('/home/$slug');
-    });
-  }
-
-  void _openNotificationFromPush(String deliveryId, String? appId) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final slug = appId ?? _appState.selectedApp?.id ?? 'thescratchify';
-      if (appId != null) {
-        _appState.selectApp(appId);
-      }
-      _router.go('/home/$slug');
-      _router.push('/notification/$deliveryId');
     });
   }
 

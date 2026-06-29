@@ -1,1 +1,8 @@
+#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"
 #include "Generated.xcconfig"
+
+// Production dart-defines for Xcode "Product > Archive" (Release) builds.
+// Values are base64 of `key=value`, appended to whatever Generated.xcconfig set.
+// Decoded: NOTIME_API_BASE=https://heynotime.com , USE_MOCK_DATA=false
+// (Debug is intentionally left alone so local emulator runs keep their default.)
+DART_DEFINES=$(DART_DEFINES),Tk9USU1FX0FQSV9CQVNFPWh0dHBzOi8vaGV5bm90aW1lLmNvbQ==,VVNFX01PQ0tfREFUQT1mYWxzZQ==

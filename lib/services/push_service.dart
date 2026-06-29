@@ -66,12 +66,9 @@ class PushService {
     if (!_configured) return;
     try {
       // iOS: FCM needs an APNS token before getToken() returns a value.
+      // Wait patiently — first-launch APNs registration can be slow.
       if (defaultTargetPlatform == TargetPlatform.iOS) {
-        for (var attempt = 0; attempt < 10; attempt++) {
-          final apns = await FirebaseMessaging.instance.getAPNSToken();
-          if (apns != null) break;
-          await Future<void>.delayed(const Duration(milliseconds: 400));
-        }
+        await _awaitApnsToken();
       }
 
       final token = await FirebaseMessaging.instance.getToken();
@@ -83,6 +80,17 @@ class PushService {
     } catch (e) {
       debugPrint('FCM token register failed: $e');
     }
+  }
+
+  /// Polls for the iOS APNs token (up to ~15s). Null means it never arrived
+  /// (push capability / provisioning problem, or APNs registration failed).
+  Future<String?> _awaitApnsToken({int maxAttempts = 30}) async {
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
+      final apns = await FirebaseMessaging.instance.getAPNSToken();
+      if (apns != null) return apns;
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+    return null;
   }
 
   Future<void> _registerToken(String token) async {

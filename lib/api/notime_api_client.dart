@@ -30,6 +30,22 @@ class PairResult {
   final String? message;
 }
 
+class ConnectInfo {
+  const ConnectInfo({
+    required this.slug,
+    required this.displayName,
+    required this.logoUrl,
+    required this.fallbackConnectLabel,
+    required this.allowFallbackConnect,
+  });
+
+  final String slug;
+  final String displayName;
+  final String logoUrl;
+  final String fallbackConnectLabel;
+  final bool allowFallbackConnect;
+}
+
 class NotiMeApiClient {
   NotiMeApiClient({http.Client? client}) : _client = client ?? http.Client();
 
@@ -53,17 +69,59 @@ class NotiMeApiClient {
       throw NotiMeApiException(_errorBody(res), statusCode: res.statusCode);
     }
     final data = jsonDecode(res.body) as Map<String, dynamic>;
+    return _pairResultFromJson(data);
+  }
+
+  Future<PairResult> pairFallback({
+    required String slug,
+    required String deviceId,
+  }) async {
+    final res = await _client.post(
+      Uri.parse('${ApiConfig.apiV1}/pair/fallback/'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'slug': slug, 'device_id': deviceId}),
+    );
+    if (res.statusCode != 200) {
+      throw NotiMeApiException(_errorBody(res), statusCode: res.statusCode);
+    }
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    return _pairResultFromJson(data);
+  }
+
+  Future<ConnectInfo> fetchConnectInfo(String slug) async {
+    final res = await _client.get(
+      Uri.parse('${ApiConfig.apiV1}/integrations/$slug/connect-info/'),
+      headers: {'Content-Type': 'application/json'},
+    );
+    if (res.statusCode != 200) {
+      throw NotiMeApiException(_errorBody(res), statusCode: res.statusCode);
+    }
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    return ConnectInfo(
+      slug: data['slug'] as String,
+      displayName: data['display_name'] as String,
+      logoUrl: (data['logo_url'] as String?) ?? '',
+      fallbackConnectLabel: data['fallback_connect_label'] as String,
+      allowFallbackConnect: data['allow_fallback_connect'] as bool? ?? false,
+    );
+  }
+
+  PairResult _pairResultFromJson(Map<String, dynamic> data) {
     final integ = data['integration'] as Map<String, dynamic>;
     return PairResult(
       accessToken: data['access_token'] as String,
       userToken: data['user_token'] as String,
       message: data['message'] as String?,
-      integration: ConnectedApp(
-        id: integ['slug'] as String,
-        projectName: integ['slug'] as String,
-        displayName: integ['display_name'] as String,
-        logoUrl: (integ['logo_url'] as String?) ?? '',
-      ),
+      integration: _integrationFromJson(integ),
+    );
+  }
+
+  ConnectedApp _integrationFromJson(Map<String, dynamic> integ) {
+    return ConnectedApp(
+      id: integ['slug'] as String,
+      projectName: integ['slug'] as String,
+      displayName: integ['display_name'] as String,
+      logoUrl: (integ['logo_url'] as String?) ?? '',
     );
   }
 
@@ -195,6 +253,9 @@ class NotiMeApiClient {
           uri.pathSegments.where((s) => s.isNotEmpty).toList();
       // https://heynotime.com/{slug}/{token}/
       if (segments.length >= 2) {
+        if (segments.first == 'connect') {
+          return null;
+        }
         if (segments.first == 'embed' && segments.length >= 3) {
           return (slug: segments[1], token: segments[2]);
         }
@@ -216,6 +277,35 @@ class NotiMeApiClient {
       if (project != null && user != null) {
         return (slug: project, token: user);
       }
+    }
+  } catch (_) {
+    return null;
+  }
+  return null;
+}
+
+/// Parses `https://heynotime.com/connect/{slug}` fallback connect links.
+String? parseConnectSlug(String raw) {
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) return null;
+
+  try {
+    final uri = trimmed.startsWith('http') || trimmed.startsWith('notime://')
+        ? Uri.parse(trimmed)
+        : Uri.parse('https://heynotime.com/$trimmed');
+
+    if (uri.scheme == 'notime' && uri.host == 'connect') {
+      final slug = uri.queryParameters['slug']?.trim();
+      if (slug != null && slug.isNotEmpty) return slug;
+    }
+
+    final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+    if (segments.length >= 2 && segments.first == 'connect') {
+      return segments[1];
+    }
+    if (segments.length == 1 && segments.first == 'connect') {
+      final slug = uri.queryParameters['slug']?.trim();
+      if (slug != null && slug.isNotEmpty) return slug;
     }
   } catch (_) {
     return null;

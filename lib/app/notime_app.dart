@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../core/theme/notime_theme.dart';
+import '../config/api_config.dart';
 import '../routing/app_router.dart';
 import '../services/app_state.dart';
 
@@ -24,12 +25,42 @@ class _NotiMeAppState extends State<NotiMeApp> {
     _appState = AppState();
     _router = createRouter(_appState);
     _appState.setupPushHandlers(
-      onNavigate: (location) => _router.go(location),
+      onNavigate: (location, {bool usePush = false}) {
+        if (usePush) {
+          final slug = _appState.selectedApp?.id ?? 'thescratchify';
+          _router.go('/home/$slug');
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _router.push(location);
+          });
+        } else {
+          _router.go(location);
+        }
+      },
     );
-    _appState.setupDeepLinks((_) {
-      final slug = _appState.selectedApp?.id ?? 'thescratchify';
-      _router.go('/home/$slug');
-    });
+    _appState.setupDeepLinks(
+      onPairingUrl: (payload) async {
+        if (_appState.isLoggedIn) {
+          final slug = _appState.selectedApp?.id ?? ApiConfig.fallbackConnectSlug;
+          _router.go('/home/$slug');
+          return;
+        }
+        final result = await _appState.loginFromQrPayload(payload);
+        if (result == LoginResult.success && mounted) {
+          final slug = _appState.selectedApp?.id ?? ApiConfig.fallbackConnectSlug;
+          _router.go('/home/$slug');
+        }
+      },
+      onConnectSlug: (slug) async {
+        if (_appState.isLoggedIn) {
+          _router.go('/home/$slug');
+          return;
+        }
+        final result = await _appState.loginFallbackConnect(slug);
+        if (result == LoginResult.success && mounted) {
+          _router.go('/home/$slug');
+        }
+      },
+    );
   }
 
   @override

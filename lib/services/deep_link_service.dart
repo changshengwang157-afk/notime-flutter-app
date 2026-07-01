@@ -5,32 +5,42 @@ import 'package:flutter/foundation.dart';
 
 import '../api/notime_api_client.dart';
 
-/// Listens for https://heynotime.com/{slug}/{token}/ universal / app links.
+/// Listens for pairing URLs and fallback connect links.
 class DeepLinkService {
   DeepLinkService({AppLinks? appLinks}) : _appLinks = appLinks ?? AppLinks();
 
   final AppLinks _appLinks;
   StreamSubscription<Uri>? _sub;
 
-  void listen(void Function(String payload) onPairingUrl) {
+  void listen({
+    required void Function(String payload) onPairingUrl,
+    required void Function(String slug) onConnectSlug,
+  }) {
     _sub?.cancel();
     _sub = _appLinks.uriLinkStream.listen(
-      (uri) {
-        final payload = uri.toString();
-        if (parsePairingPayload(payload) != null) {
-          onPairingUrl(payload);
-        }
-      },
+      (uri) => _dispatch(uri.toString(), onPairingUrl, onConnectSlug),
       onError: (e) => debugPrint('Deep link error: $e'),
     );
 
     _appLinks.getInitialLink().then((uri) {
       if (uri == null) return;
-      final payload = uri.toString();
-      if (parsePairingPayload(payload) != null) {
-        onPairingUrl(payload);
-      }
+      _dispatch(uri.toString(), onPairingUrl, onConnectSlug);
     });
+  }
+
+  void _dispatch(
+    String payload,
+    void Function(String payload) onPairingUrl,
+    void Function(String slug) onConnectSlug,
+  ) {
+    final connectSlug = parseConnectSlug(payload);
+    if (connectSlug != null) {
+      onConnectSlug(connectSlug);
+      return;
+    }
+    if (parsePairingPayload(payload) != null) {
+      onPairingUrl(payload);
+    }
   }
 
   void dispose() {

@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../api/notime_api_client.dart';
+import '../utils/push_payload.dart';
 
 typedef PushTapCallback = Future<void> Function(Map<String, String> data);
 
@@ -18,11 +19,9 @@ class PushService {
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
 
-  /// Custom sound from android/app/src/main/res/raw/notification.wav
   static const RawResourceAndroidNotificationSound _alertSound =
       RawResourceAndroidNotificationSound('notification');
 
-  /// Channel id must change when sound settings change (Android locks channels).
   static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
     'notime_push_custom',
     'NotiMe Alerts',
@@ -36,7 +35,6 @@ class PushService {
   bool _configured = false;
   PushTapCallback? _onTap;
 
-  /// Wire Firebase + local notifications. Safe to call once at app startup.
   Future<void> configure({required PushTapCallback onTap}) async {
     if (_configured) return;
     _onTap = onTap;
@@ -62,12 +60,9 @@ class PushService {
     }
   }
 
-  /// Register device token after login or session restore.
   Future<void> registerDevice() async {
     if (!_configured) return;
     try {
-      // iOS: FCM needs an APNS token before getToken() returns a value.
-      // Wait patiently — first-launch APNs registration can be slow.
       if (defaultTargetPlatform == TargetPlatform.iOS) {
         await _awaitApnsToken();
       }
@@ -83,8 +78,6 @@ class PushService {
     }
   }
 
-  /// Polls for the iOS APNs token (up to ~15s). Null means it never arrived
-  /// (push capability / provisioning problem, or APNs registration failed).
   Future<String?> _awaitApnsToken({int maxAttempts = 30}) async {
     for (var attempt = 0; attempt < maxAttempts; attempt++) {
       final apns = await FirebaseMessaging.instance.getAPNSToken();
@@ -105,7 +98,6 @@ class PushService {
     }
   }
 
-  /// Handle cold-start tap (app opened from notification tray).
   Future<void> processInitialMessage() async {
     if (!_configured) return;
     try {
@@ -151,7 +143,8 @@ class PushService {
     final notification = message.notification;
     final title = notification?.title ?? 'NotiMe';
     final body = notification?.body ?? '';
-    final payload = jsonEncode(message.data);
+    final data = extractPushPayloadFromMessage(message);
+    final payload = jsonEncode(data);
 
     await _localNotifications.show(
       message.hashCode,
@@ -180,14 +173,17 @@ class PushService {
   }
 
   Future<void> _handleRemoteTap(RemoteMessage message) async {
-    await _dispatchTap(_normalizeData(message.data));
+    final data = extractPushPayloadFromMessage(message);
+    if (data.isEmpty) {
+      debugPrint('FCM tap: empty payload (data=${message.data})');
+    }
+    await _dispatchTap(data);
   }
 
   void _handlePayloadTap(String payload) {
     try {
       final raw = jsonDecode(payload) as Map<String, dynamic>;
-      final data = raw.map((k, v) => MapEntry(k, '$v'));
-      unawaited(_dispatchTap(data));
+      unawaited(_dispatchTap(extractPushPayload(raw)));
     } catch (e) {
       debugPrint('Invalid notification payload: $e');
     }
@@ -197,9 +193,5 @@ class PushService {
     final handler = _onTap;
     if (handler == null) return;
     await handler(data);
-  }
-
-  Map<String, String> _normalizeData(Map<String, dynamic> data) {
-    return data.map((key, value) => MapEntry(key, '$value'));
   }
 }

@@ -14,4 +14,10 @@ abstract final class ApiConfig {
   );
 
   static String get apiV1 => '$baseUrl/api/v1';
+
+  /// Default integration for logo / fallback connect when QR fails.
+  static const String fallbackConnectSlug = String.fromEnvironment(
+    'NOTIME_FALLBACK_SLUG',
+    defaultValue: 'thescratchify',
+  );
 }

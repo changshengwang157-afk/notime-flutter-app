@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../api/notime_api_client.dart';
+import '../config/api_config.dart';
 import '../core/theme/notime_theme.dart';
 import '../services/app_state.dart';
 import '../services/camera_permission.dart';
+import '../widgets/fallback_connect_button.dart';
 import '../widgets/notime_app_bar_title.dart';
 import '../widgets/notime_scaffold.dart';
 import '../widgets/paste_pairing_url_dialog.dart';
@@ -20,6 +23,10 @@ class StarterScreen extends StatefulWidget {
 
 class _StarterScreenState extends State<StarterScreen> {
   String? _lastScan;
+  String? _lastAttemptedSlug;
+
+  String get _fallbackSlug =>
+      _lastAttemptedSlug ?? ApiConfig.fallbackConnectSlug;
 
   Future<void> _openScanner() async {
     final granted = await ensureCameraPermission();
@@ -55,14 +62,42 @@ class _StarterScreenState extends State<StarterScreen> {
     if (_lastScan == payload) return;
     _lastScan = payload;
 
+    final parsed = parsePairingPayload(payload);
+    if (parsed != null) {
+      _lastAttemptedSlug = parsed.slug;
+    }
+
     final state = context.read<AppState>();
     final result = await state.loginFromQrPayload(payload);
 
     if (!mounted) return;
+    await _handleLoginResult(
+      result,
+      slug: context.read<AppState>().selectedApp?.id ?? _fallbackSlug,
+    );
+  }
+
+  Future<void> _handleFallbackConnect() async {
+    final state = context.read<AppState>();
+    final result = await state.loginFallbackConnect(_fallbackSlug);
+    if (!mounted) return;
+    await _handleLoginResult(
+      result,
+      slug: state.selectedApp?.id ?? _fallbackSlug,
+    );
+  }
+
+  Future<void> _handleLoginResult(LoginResult result, {required String slug}) async {
+    final state = context.read<AppState>();
 
     switch (result) {
       case LoginResult.success:
-        final slug = context.read<AppState>().selectedApp?.id ?? 'thescratchify';
+        final message = state.lastSuccessMessage;
+        if (message != null && message.isNotEmpty) {
+          _showSnack(message);
+          state.clearLastSuccessMessage();
+        }
+        if (!mounted) return;
         context.go('/home/$slug');
       case LoginResult.accountNotFound:
         context.push('/account-not-found');
@@ -70,7 +105,7 @@ class _StarterScreenState extends State<StarterScreen> {
         await _showInvalidQrDialog();
         Future.delayed(const Duration(seconds: 2), () => _lastScan = null);
       case LoginResult.networkError:
-        _showSnack(context.read<AppState>().error ??
+        _showSnack(state.error ??
             'Could not reach the server. Check your connection and try again.');
         Future.delayed(const Duration(seconds: 2), () => _lastScan = null);
     }
@@ -80,10 +115,21 @@ class _StarterScreenState extends State<StarterScreen> {
     final action = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Invalid QR code'),
-        content: const Text(
-          'This QR code is not a valid NotiMe pairing link. '
-          'Get a fresh link from Dashboard → My Users, or paste the URL manually.',
+        title: const Text("Couldn't scan the QR code"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'You can still connect and receive notifications without scanning.',
+            ),
+            const SizedBox(height: 16),
+            FallbackConnectButton(
+              slug: _fallbackSlug,
+              compact: true,
+              onPressed: () => Navigator.pop(context, 'fallback'),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -98,7 +144,9 @@ class _StarterScreenState extends State<StarterScreen> {
       ),
     );
     if (!mounted || action == null) return;
-    if (action == 'paste') {
+    if (action == 'fallback') {
+      await _handleFallbackConnect();
+    } else if (action == 'paste') {
       await _openPasteUrlDialog();
     } else if (action == 'retry') {
       await _openScanner();
@@ -180,6 +228,10 @@ class _StarterScreenState extends State<StarterScreen> {
                         foregroundColor: NotiMeColors.textSecondary,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
+                    ),
+                    FallbackConnectButton(
+                      slug: _fallbackSlug,
+                      onPressed: _handleFallbackConnect,
                     ),
                   ],
                 ),

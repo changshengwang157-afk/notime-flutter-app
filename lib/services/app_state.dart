@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import '../api/notime_api_client.dart';
 import '../config/api_config.dart';
@@ -9,11 +9,15 @@ import '../models/connected_app.dart';
 import '../models/notification_item.dart';
 import '../models/sent_notification.dart';
 import '../models/user_session.dart';
+import 'device_install_id.dart';
 import 'push_service.dart';
 import 'session_storage.dart';
 import 'deep_link_service.dart';
 
-typedef PushNavigateCallback = void Function(String location);
+typedef PushNavigateCallback = void Function(
+  String location, {
+  bool usePush,
+});
 
 class AppState extends ChangeNotifier {
   AppState() {
@@ -30,6 +34,7 @@ class AppState extends ChangeNotifier {
   }
 
   final SessionStorage _storage = SessionStorage();
+  final DeviceInstallId _deviceInstallId = DeviceInstallId();
   final NotiMeApiClient _api = NotiMeApiClient();
   late final PushService _push = PushService(api: _api);
   final DeepLinkService _deepLinks = DeepLinkService();
@@ -43,11 +48,13 @@ class AppState extends ChangeNotifier {
   String? _selectedAppId;
   bool _loading = false;
   String? _error;
+  String? _lastSuccessMessage;
 
   UserSession? get session => _session;
   bool get isLoggedIn => _session != null;
   bool get isLoading => _loading;
   String? get error => _error;
+  String? get lastSuccessMessage => _lastSuccessMessage;
   List<ConnectedApp> get connectedApps => List.unmodifiable(_connectedApps);
   List<SentNotification> get history => List.unmodifiable(_history);
 
@@ -117,22 +124,7 @@ class AppState extends ChangeNotifier {
 
     try {
       final result = await _api.pair(slug: parsed.slug, token: parsed.token);
-      _api.setAccessToken(result.accessToken);
-      await _storage.save(
-        accessToken: result.accessToken,
-        userToken: result.userToken,
-      );
-      _session = UserSession(
-        userToken: result.userToken,
-        displayName: 'User',
-      );
-      _connectedApps.clear();
-      _connectedApps.add(result.integration);
-      _selectedAppId = result.integration.id;
-      await refreshFromApi();
-      await _push.registerDevice();
-      await _processPendingPush();
-      return LoginResult.success;
+      return await _completePairResult(result);
     } on NotiMeApiException catch (e) {
       _error = e.message;
       if (e.statusCode == 404 || e.statusCode == 400) {
@@ -148,6 +140,68 @@ class AppState extends ChangeNotifier {
       _loading = false;
       notifyListeners();
     }
+  }
+
+  /// Fallback connect when QR scan fails — slug + stable device id.
+  Future<LoginResult> loginFallbackConnect(String slug) async {
+    final normalized = slug.trim().toLowerCase();
+    if (normalized.isEmpty) return LoginResult.invalidQr;
+
+    if (ApiConfig.useMockData) {
+      return _loginMock(normalized, 'fallback');
+    }
+
+    _loading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final deviceId = await _deviceInstallId.get();
+      final result = await _api.pairFallback(
+        slug: normalized,
+        deviceId: deviceId,
+      );
+      return await _completePairResult(result);
+    } on NotiMeApiException catch (e) {
+      _error = e.message;
+      if (e.statusCode == 403 || e.statusCode == 404) {
+        return LoginResult.invalidQr;
+      }
+      if (e.statusCode == 429) {
+        _error = 'Too many connect attempts. Please try again later.';
+      }
+      return LoginResult.networkError;
+    } catch (_) {
+      _error = 'Could not reach the server. Check your connection and try again.';
+      return LoginResult.networkError;
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<LoginResult> _completePairResult(PairResult result) async {
+    _api.setAccessToken(result.accessToken);
+    await _storage.save(
+      accessToken: result.accessToken,
+      userToken: result.userToken,
+    );
+    _session = UserSession(
+      userToken: result.userToken,
+      displayName: 'User',
+    );
+    _connectedApps.clear();
+    _connectedApps.add(result.integration);
+    _selectedAppId = result.integration.id;
+    _lastSuccessMessage = result.message;
+    await refreshFromApi();
+    await _push.registerDevice();
+    await _processPendingPush();
+    return LoginResult.success;
+  }
+
+  void clearLastSuccessMessage() {
+    _lastSuccessMessage = null;
   }
 
   LoginResult _loginMock(String project, String userToken) {
@@ -204,21 +258,21 @@ class AppState extends ChangeNotifier {
     _onPushNavigate = onNavigate;
     await _push.configure(onTap: _handlePushTap);
     await ready;
+    // Let GoRouter finish its first redirect (e.g. / → /home) before cold-start tap.
+    await Future<void>.delayed(const Duration(milliseconds: 400));
     await _push.processInitialMessage();
+    await _processPendingPush();
   }
 
-  /// Universal / app links: https://heynotime.com/{slug}/{token}/
-  void setupDeepLinks(void Function(String payload) onPayload) {
-    _deepLinks.listen((payload) async {
-      if (isLoggedIn) {
-        onPayload(payload);
-        return;
-      }
-      final result = await loginFromQrPayload(payload);
-      if (result == LoginResult.success) {
-        onPayload(payload);
-      }
-    });
+  /// Universal / app links: pairing URLs and /connect/{slug} fallback.
+  void setupDeepLinks({
+    required Future<void> Function(String payload) onPairingUrl,
+    required Future<void> Function(String slug) onConnectSlug,
+  }) {
+    _deepLinks.listen(
+      onPairingUrl: (payload) => unawaited(onPairingUrl(payload)),
+      onConnectSlug: (slug) => unawaited(onConnectSlug(slug)),
+    );
   }
 
   @override
@@ -257,34 +311,58 @@ class AppState extends ChangeNotifier {
     final deliveryId = data['delivery_id']?.trim();
     final slug = data['integration_slug']?.trim();
 
+    if (slug != null && slug.isNotEmpty) {
+      _selectedAppId = slug;
+    }
+
     if (deliveryId == null || deliveryId.isEmpty) {
+      debugPrint('Push tap: missing delivery_id — data=$data');
+      await refreshFromApi();
       if (slug != null && slug.isNotEmpty) {
-        _selectedAppId = slug;
-        await refreshFromApi();
-        _onPushNavigate?.call('/home/$slug');
+        _navigateFromPush('/home/$slug');
       }
       return;
     }
 
+    // Refresh inbox and load the tapped notification before navigating.
+    await _loadPushTarget(deliveryId);
+    notifyListeners();
+    _navigateFromPush('/notification/$deliveryId', usePush: true);
+  }
+
+  Future<void> _loadPushTarget(String deliveryId) async {
     try {
-      if (slug != null && slug.isNotEmpty) {
-        _selectedAppId = slug;
-      }
-
-      await fetchAndCacheNotification(deliveryId);
-      await refreshFromApi();
-
-      _onPushNavigate?.call('/notification/$deliveryId');
+      await Future.wait([
+        refreshFromApi(),
+        fetchAndCacheNotification(deliveryId),
+      ]);
     } catch (e) {
-      debugPrint('Push tap: could not open $deliveryId: $e');
+      debugPrint('Push tap parallel load failed: $e — retrying detail only');
+      try {
+        await fetchAndCacheNotification(deliveryId);
+      } catch (e2) {
+        debugPrint('Push tap detail load failed: $e2');
+      }
       try {
         await refreshFromApi();
       } catch (_) {}
-      final fallbackSlug = slug ?? selectedApp?.id;
-      if (fallbackSlug != null) {
-        _onPushNavigate?.call('/home/$fallbackSlug');
-      }
     }
+  }
+
+  void _navigateFromPush(String location, {bool usePush = false}) {
+    final navigate = _onPushNavigate;
+    if (navigate == null) return;
+
+    void runNavigation() {
+      navigate(location, usePush: usePush);
+    }
+
+    // Two frames + short delay: reliable on iOS cold start when router is settling.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Future<void>.delayed(const Duration(milliseconds: 150), runNavigation);
+      });
+    });
   }
 
   void _cacheNotification(NotificationItem item) {

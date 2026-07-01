@@ -45,6 +45,13 @@ class _NotificationDetailScreenState extends State<NotificationDetailScreen> {
       await state.fetchAndCacheNotification(widget.notificationId);
     } catch (_) {
       if (!mounted) return;
+      try {
+        await state.refreshFromApi();
+        if (state.notificationById(widget.notificationId) != null) {
+          return;
+        }
+      } catch (_) {}
+      if (!mounted) return;
       setState(() => _loadError = 'Could not load this notification.');
     } finally {
       if (mounted) setState(() => _loading = false);

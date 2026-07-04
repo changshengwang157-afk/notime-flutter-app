@@ -1,4 +1,4 @@
-/// Appends `?user=` for Scratchify deep links (same behaviour as notification detail).
+/// Appends `?user=` to external notification links when needed.
 Uri appendUserQuery(String url, String userToken) {
   final base = Uri.parse(url);
   final params = Map<String, String>.from(base.queryParameters);

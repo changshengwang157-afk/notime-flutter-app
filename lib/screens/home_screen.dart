@@ -81,8 +81,11 @@ class _AppNotificationsPage extends StatelessWidget {
     final state = context.watch<AppState>();
     final pageApp = app;
     if (pageApp == null) {
-      return Center(
-        child: Text('Application not found: $appId'),
+      return const Center(
+        child: Text(
+          'Unable to load notifications.',
+          style: TextStyle(color: NotiMeColors.textSecondary),
+        ),
       );
     }
 
@@ -94,7 +97,7 @@ class _AppNotificationsPage extends StatelessWidget {
         key: ValueKey<String>(pageApp.id),
         padding: const EdgeInsets.all(16),
         children: [
-          ConnectedAppHeader(app: pageApp),
+          const ConnectedAppHeader(),
           if (items.isEmpty)
             const Padding(
               padding: EdgeInsets.all(24),

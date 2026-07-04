@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../core/notime_branding.dart';
 import '../core/theme/notime_theme.dart';
-import '../models/connected_app.dart';
 import '../services/app_state.dart';
 import 'help_sheet.dart';
 
-/// Top-right account menu after login (matches Scratchify / heynotime preview).
+/// Top-right account menu after login.
 class HomeAccountMenuButton extends StatelessWidget {
   const HomeAccountMenuButton({super.key});
 
@@ -167,11 +167,14 @@ class _AccountMenuPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          ...apps.map(
-            (app) => _AppListTile(
-              app: app,
-              selected: app.id == selectedAppId,
-              onTap: () => onSelectApp(app.id),
+          ...apps.asMap().entries.map(
+            (entry) => _AppListTile(
+              label: NotiMeBranding.menuLabelForApp(
+                index: entry.key,
+                total: apps.length,
+              ),
+              selected: entry.value.id == selectedAppId,
+              onTap: () => onSelectApp(entry.value.id),
             ),
           ),
           if (apps.isEmpty)
@@ -187,7 +190,7 @@ class _AccountMenuPanel extends StatelessWidget {
             child: Divider(height: 1, color: NotiMeColors.border),
           ),
           const Text(
-            'Choose which application notifications you want to view.',
+            'Choose which notifications you want to view.',
             style: TextStyle(
               fontSize: 13,
               color: NotiMeColors.textSecondary,
@@ -211,12 +214,12 @@ class _AccountMenuPanel extends StatelessWidget {
 
 class _AppListTile extends StatelessWidget {
   const _AppListTile({
-    required this.app,
+    required this.label,
     required this.selected,
     required this.onTap,
   });
 
-  final ConnectedApp app;
+  final String label;
   final bool selected;
   final VoidCallback onTap;
 
@@ -228,7 +231,7 @@ class _AppListTile extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
         child: Text(
-          app.displayName,
+          label,
           style: TextStyle(
             fontSize: 16,
             fontWeight: selected ? FontWeight.w700 : FontWeight.w400,

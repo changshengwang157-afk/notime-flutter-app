@@ -3,49 +3,41 @@ import '../models/notification_item.dart';
 import '../models/sent_notification.dart';
 
 abstract final class MockData {
-  static const scratchifyLogo = 'assets/images/scratchify_logo.png';
+  static const notimeLogo = 'assets/images/notime_logo.png';
 
   static const scratchify = ConnectedApp(
     id: 'scratchify',
     projectName: 'scratchify',
-    displayName: 'Scratchify',
-    logoUrl: scratchifyLogo,
+    displayName: 'NotiMe',
+    logoUrl: notimeLogo,
   );
 
   static const coursify = ConnectedApp(
     id: 'coursify',
     projectName: 'coursify',
-    displayName: 'Coursify',
-    logoUrl:
-        'https://tgcoders.pl/media/profile-pictures/g%C5%82%C3%B3wne.png',
+    displayName: 'NotiMe',
+    logoUrl: notimeLogo,
   );
-
-  static const _appOneLogo =
-      'https://images.unsplash.com/photo-1611162617474-5b21e939e966?w=128&h=128&fit=crop';
-  static const _appTwoLogo =
-      'https://images.unsplash.com/photo-1513885535751-8b923fbd345f?w=128&h=128&fit=crop';
-  static const _appThreeLogo =
-      'https://images.unsplash.com/photo-1607083206869-4c7672f72d8a?w=128&h=128&fit=crop';
 
   static const applicationOne = ConnectedApp(
     id: 'app_one',
     projectName: 'app_one',
-    displayName: 'Application One',
-    logoUrl: _appOneLogo,
+    displayName: 'NotiMe',
+    logoUrl: notimeLogo,
   );
 
   static const applicationTwo = ConnectedApp(
     id: 'app_two',
     projectName: 'app_two',
-    displayName: 'Application Two',
-    logoUrl: _appTwoLogo,
+    displayName: 'NotiMe',
+    logoUrl: notimeLogo,
   );
 
   static const applicationThree = ConnectedApp(
     id: 'app_three',
     projectName: 'app_three',
-    displayName: 'Application Three',
-    logoUrl: _appThreeLogo,
+    displayName: 'NotiMe',
+    logoUrl: notimeLogo,
   );
 
   static const List<ConnectedApp> defaultConnectedApps = [
@@ -91,7 +83,7 @@ abstract final class MockData {
         title: 'Notification Name',
         body: _lorem,
         imageUrl: _sf1,
-        externalUrl: 'https://thescratchify.com/',
+        externalUrl: 'https://example.com/notification',
         expiresAt: now.add(const Duration(hours: 20)),
       ),
       NotificationItem(
@@ -100,7 +92,7 @@ abstract final class MockData {
         title: 'Notification Name',
         body: _lorem,
         imageUrl: _sf2,
-        externalUrl: 'https://thescratchify.com/',
+        externalUrl: 'https://example.com/notification',
         expiresAt: now.add(const Duration(days: 2)),
       ),
       NotificationItem(
@@ -109,7 +101,7 @@ abstract final class MockData {
         title: 'Notification Name',
         body: _lorem,
         imageUrl: _sf3,
-        externalUrl: 'https://thescratchify.com/',
+        externalUrl: 'https://example.com/notification',
         expiresAt: now.add(const Duration(days: 1)),
       ),
       NotificationItem(
@@ -118,7 +110,7 @@ abstract final class MockData {
         title: 'Notification Name (Expired)',
         body: _lorem,
         imageUrl: _sf4,
-        externalUrl: 'https://thescratchify.com/',
+        externalUrl: 'https://example.com/notification',
         expiresAt: now.subtract(const Duration(hours: 2)),
       ),
     ];
@@ -267,7 +259,7 @@ abstract final class MockData {
       id: 's1',
       notificationId: 'sf-n1',
       title: 'Notification Name',
-      appName: 'Scratchify',
+      appName: 'NotiMe',
       sentAt: DateTime.now().subtract(const Duration(hours: 3)),
       linkClicked: true,
     ),
@@ -275,14 +267,14 @@ abstract final class MockData {
       id: 's2',
       notificationId: 'sf-n2',
       title: 'Notification Name',
-      appName: 'Scratchify',
+      appName: 'NotiMe',
       sentAt: DateTime.now().subtract(const Duration(days: 1, hours: 2)),
     ),
     SentNotification(
       id: 's3',
       notificationId: 'sf-n4',
       title: 'Notification Name (Expired)',
-      appName: 'Scratchify',
+      appName: 'NotiMe',
       sentAt: DateTime.now().subtract(const Duration(days: 3)),
       linkClicked: true,
     ),

@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../core/notime_branding.dart';
 import '../core/theme/notime_theme.dart';
 import '../models/notification_item.dart';
 import '../services/app_state.dart';
@@ -62,8 +63,6 @@ class _NotificationDetailScreenState extends State<NotificationDetailScreen> {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final item = state.notificationById(widget.notificationId);
-    final app =
-        item != null ? state.connectedAppById(item.appId) : state.selectedApp;
 
     if (_loading) {
       return NotiMePage(
@@ -149,7 +148,11 @@ class _NotificationDetailScreenState extends State<NotificationDetailScreen> {
               child: ElevatedButton.icon(
                 onPressed: expired
                     ? null
-                    : () => _openExternalLink(context, item, app?.displayName ?? 'App'),
+                    : () => _openExternalLink(
+                          context,
+                          item,
+                          NotiMeBranding.publicAppName(null),
+                        ),
                 icon: const Icon(Icons.open_in_new),
                 label: const Text('Go to Link'),
               ),

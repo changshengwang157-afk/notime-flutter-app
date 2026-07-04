@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../api/notime_api_client.dart';
 import '../config/api_config.dart';
+import '../core/app_messenger.dart';
+import '../core/notime_branding.dart';
 import '../core/theme/notime_theme.dart';
 import '../services/app_state.dart';
 import '../services/camera_permission.dart';
@@ -67,45 +71,49 @@ class _StarterScreenState extends State<StarterScreen> {
       _lastAttemptedSlug = parsed.slug;
     }
 
+    // Capture the router before awaiting: the redirect listener may dispose
+    // this screen during login, which would otherwise skip navigation.
+    final router = GoRouter.of(context);
     final state = context.read<AppState>();
     final result = await state.loginFromQrPayload(payload);
-
-    if (!mounted) return;
-    await _handleLoginResult(
-      result,
-      slug: context.read<AppState>().selectedApp?.id ?? _fallbackSlug,
-    );
-  }
-
-  Future<void> _handleFallbackConnect() async {
-    final state = context.read<AppState>();
-    final result = await state.loginFallbackConnect(_fallbackSlug);
-    if (!mounted) return;
-    await _handleLoginResult(
+    _handleLoginResult(
+      router,
       result,
       slug: state.selectedApp?.id ?? _fallbackSlug,
     );
   }
 
-  Future<void> _handleLoginResult(LoginResult result, {required String slug}) async {
+  Future<void> _handleFallbackConnect() async {
+    final router = GoRouter.of(context);
+    final state = context.read<AppState>();
+    final result = await state.loginFallbackConnect(_fallbackSlug);
+    _handleLoginResult(
+      router,
+      result,
+      slug: state.selectedApp?.id ?? _fallbackSlug,
+    );
+  }
+
+  void _handleLoginResult(
+    GoRouter router,
+    LoginResult result, {
+    required String slug,
+  }) {
     final state = context.read<AppState>();
 
     switch (result) {
       case LoginResult.success:
-        final message = state.lastSuccessMessage;
-        if (message != null && message.isNotEmpty) {
-          _showSnack(message);
-          state.clearLastSuccessMessage();
-        }
-        if (!mounted) return;
-        context.go('/home/$slug');
+        state.clearLastSuccessMessage();
+        router.go('/home/$slug');
+        showAppSnack(NotiMeBranding.connectSuccess);
       case LoginResult.accountNotFound:
-        context.push('/account-not-found');
+        router.push('/account-not-found');
       case LoginResult.invalidQr:
-        await _showInvalidQrDialog();
+        if (!mounted) return;
+        unawaited(_showInvalidQrDialog());
         Future.delayed(const Duration(seconds: 2), () => _lastScan = null);
       case LoginResult.networkError:
-        _showSnack(state.error ??
+        showAppSnack(state.error ??
             'Could not reach the server. Check your connection and try again.');
         Future.delayed(const Duration(seconds: 2), () => _lastScan = null);
     }
@@ -125,7 +133,6 @@ class _StarterScreenState extends State<StarterScreen> {
             ),
             const SizedBox(height: 16),
             FallbackConnectButton(
-              slug: _fallbackSlug,
               compact: true,
               onPressed: () => Navigator.pop(context, 'fallback'),
             ),
@@ -230,7 +237,6 @@ class _StarterScreenState extends State<StarterScreen> {
                       ),
                     ),
                     FallbackConnectButton(
-                      slug: _fallbackSlug,
                       onPressed: _handleFallbackConnect,
                     ),
                   ],

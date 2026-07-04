@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 
 import '../api/notime_api_client.dart';
 import '../config/api_config.dart';
+import '../core/notime_branding.dart';
 import '../data/mock_data.dart';
 import '../models/connected_app.dart';
 import '../models/notification_item.dart';
@@ -441,7 +442,7 @@ class AppState extends ChangeNotifier {
           id: 's-${DateTime.now().millisecondsSinceEpoch}',
           notificationId: notificationId,
           title: title,
-          appName: appName,
+          appName: NotiMeBranding.publicAppName(appName),
           sentAt: DateTime.now(),
           linkClicked: true,
         ),

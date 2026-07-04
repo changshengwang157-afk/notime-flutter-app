@@ -7,6 +7,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Receive Notifications From Your Favorite Apps'), findsOneWidget);
-    expect(find.text('Simulate valid Scratchify login'), findsOneWidget);
+    expect(find.text('Continue without QR'), findsOneWidget);
   });
 }

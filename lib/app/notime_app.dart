@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../core/theme/notime_theme.dart';
 import '../config/api_config.dart';
+import '../core/app_messenger.dart';
 import '../routing/app_router.dart';
 import '../services/app_state.dart';
 
@@ -86,6 +87,7 @@ class _NotiMeAppState extends State<NotiMeApp> {
                 title: 'NotiMe',
                 debugShowCheckedModeBanner: false,
                 theme: theme,
+                scaffoldMessengerKey: appMessengerKey,
                 routerConfig: _router,
                 builder: (context, child) {
                   // No DEBUG/Demo ribbon on debug builds.

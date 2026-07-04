@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../api/notime_api_client.dart';
+import '../core/notime_branding.dart';
 import '../utils/push_payload.dart';
 
 typedef PushTapCallback = Future<void> Function(Map<String, String> data);
@@ -25,7 +26,7 @@ class PushService {
   static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
     'notime_push_custom',
     'NotiMe Alerts',
-    description: 'Scratch card alerts with custom sound',
+    description: NotiMeBranding.pushChannelDescription,
     importance: Importance.max,
     playSound: true,
     enableVibration: true,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../core/notime_branding.dart';
 import '../core/theme/notime_theme.dart';
 import '../models/sent_notification.dart';
 import '../services/app_state.dart';
@@ -60,7 +61,7 @@ class _HistoryCard extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                item.appName,
+                NotiMeBranding.historySource,
                 style: const TextStyle(
                   fontSize: 13,
                   color: NotiMeColors.textSecondary,

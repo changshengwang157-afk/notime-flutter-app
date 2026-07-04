@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../config/api_config.dart';
+import '../core/notime_branding.dart';
 import '../models/connected_app.dart';
 import '../models/notification_item.dart';
 import '../models/sent_notification.dart';
@@ -117,11 +118,13 @@ class NotiMeApiClient {
   }
 
   ConnectedApp _integrationFromJson(Map<String, dynamic> integ) {
-    return ConnectedApp(
-      id: integ['slug'] as String,
-      projectName: integ['slug'] as String,
-      displayName: integ['display_name'] as String,
-      logoUrl: (integ['logo_url'] as String?) ?? '',
+    return NotiMeBranding.sanitizeIntegration(
+      ConnectedApp(
+        id: integ['slug'] as String,
+        projectName: integ['slug'] as String,
+        displayName: integ['display_name'] as String,
+        logoUrl: (integ['logo_url'] as String?) ?? '',
+      ),
     );
   }
 
@@ -151,11 +154,13 @@ class NotiMeApiClient {
     final list = data['integrations'] as List<dynamic>;
     return list
         .map(
-          (e) => ConnectedApp(
-            id: e['slug'] as String,
-            projectName: e['slug'] as String,
-            displayName: e['display_name'] as String,
-            logoUrl: (e['logo_url'] as String?) ?? '',
+          (e) => NotiMeBranding.sanitizeIntegration(
+            ConnectedApp(
+              id: e['slug'] as String,
+              projectName: e['slug'] as String,
+              displayName: e['display_name'] as String,
+              logoUrl: (e['logo_url'] as String?) ?? '',
+            ),
           ),
         )
         .toList();
@@ -186,16 +191,20 @@ class NotiMeApiClient {
     }
     final data = jsonDecode(res.body) as Map<String, dynamic>;
     final list = data['history'] as List<dynamic>;
-    return list.map((e) {
-      return SentNotification(
-        id: e['id'] as String,
-        notificationId: e['notification_id'] as String,
-        title: e['title'] as String,
-        appName: e['app_name'] as String,
-        sentAt: DateTime.parse(e['sent_at'] as String),
-        linkClicked: e['link_clicked'] as bool? ?? false,
-      );
-    }).toList();
+    return list
+        .map((e) {
+          return NotiMeBranding.sanitizeHistory(
+            SentNotification(
+              id: e['id'] as String,
+              notificationId: e['notification_id'] as String,
+              title: e['title'] as String,
+              appName: e['app_name'] as String,
+              sentAt: DateTime.parse(e['sent_at'] as String),
+              linkClicked: e['link_clicked'] as bool? ?? false,
+            ),
+          );
+        })
+        .toList();
   }
 
   Future<NotificationItem> fetchNotificationDetail(String deliveryId) async {

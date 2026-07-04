@@ -70,7 +70,7 @@ class _PastePairingUrlDialogState extends State<PastePairingUrlDialog> {
           TextField(
             controller: _controller,
             decoration: InputDecoration(
-              hintText: 'https://heynotime.com/thescratchify-5/...',
+              hintText: 'https://heynotime.com/your-app-slug/your-token/...',
               border: const OutlineInputBorder(),
               suffixIcon: IconButton(
                 icon: const Icon(Icons.content_paste),

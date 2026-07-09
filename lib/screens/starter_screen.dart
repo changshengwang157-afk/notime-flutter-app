@@ -63,6 +63,19 @@ class _StarterScreenState extends State<StarterScreen> {
   }
 
   Future<void> _handlePayload(String payload) async {
+    if (payload.startsWith('connect:')) {
+      _lastAttemptedSlug = payload.substring('connect:'.length);
+      await _handleFallbackConnect();
+      return;
+    }
+
+    final connectSlug = parseConnectSlug(payload);
+    if (connectSlug != null) {
+      _lastAttemptedSlug = connectSlug;
+      await _handleFallbackConnect();
+      return;
+    }
+
     if (_lastScan == payload) return;
     _lastScan = payload;
 

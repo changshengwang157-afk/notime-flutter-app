@@ -27,27 +27,24 @@ class _NotiMeAppState extends State<NotiMeApp> {
     _router = createRouter(_appState);
     _appState.setupPushHandlers(
       onNavigate: (location, {bool usePush = false}) {
-        if (usePush) {
-          final slug = _appState.selectedApp?.id ?? 'thescratchify';
-          _router.go('/home/$slug');
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _router.push(location);
-          });
-        } else {
-          _router.go(location);
-        }
+        _navigateFromPushTap(location, usePush: usePush);
       },
     );
     _appState.setupDeepLinks(
       onPairingUrl: (payload) async {
         if (_appState.isLoggedIn) {
-          final slug = _appState.selectedApp?.id ?? ApiConfig.fallbackConnectSlug;
-          _router.go('/home/$slug');
+          final result = await _appState.connectAppFromQr(payload);
+          if (result == ConnectAppResult.success && mounted) {
+            final slug =
+                _appState.selectedApp?.id ?? ApiConfig.fallbackConnectSlug;
+            _router.go('/home/$slug');
+          }
           return;
         }
         final result = await _appState.loginFromQrPayload(payload);
         if (result == LoginResult.success && mounted) {
-          final slug = _appState.selectedApp?.id ?? ApiConfig.fallbackConnectSlug;
+          final slug =
+              _appState.selectedApp?.id ?? ApiConfig.fallbackConnectSlug;
           _router.go('/home/$slug');
         }
       },
@@ -69,6 +66,43 @@ class _NotiMeAppState extends State<NotiMeApp> {
     _router.dispose();
     _appState.dispose();
     super.dispose();
+  }
+
+  /// Reliable navigation when user taps a push notification.
+  Future<void> _navigateFromPushTap(
+    String location, {
+    bool usePush = false,
+  }) async {
+    if (!location.startsWith('/notification/')) {
+      _router.go(location);
+      return;
+    }
+
+    final slug = _appState.selectedApp?.id ?? ApiConfig.fallbackConnectSlug;
+    final home = '/home/$slug';
+
+    // Let session restore + router redirect settle (cold start from killed state).
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+
+    if (_appState.isLoggedIn && _router.state.matchedLocation != home) {
+      _router.go(home);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+
+    if (!_appState.isLoggedIn) {
+      _router.go('/');
+      return;
+    }
+
+    if (_router.state.matchedLocation == location) {
+      return;
+    }
+
+    if (usePush) {
+      _router.push(location);
+    } else {
+      _router.go(location);
+    }
   }
 
   @override

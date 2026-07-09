@@ -41,6 +41,19 @@ class _AddAppScreenState extends State<AddAppScreen> {
   }
 
   Future<void> _connect(String payload) async {
+    if (payload.startsWith('connect:')) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Connect links are for first-time login. '
+            'Use a pairing URL from Dashboard → My Users to add another app.',
+          ),
+        ),
+      );
+      return;
+    }
+
     final result = await context.read<AppState>().connectAppFromQr(payload);
     if (!mounted) return;
 

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 /// Normalizes FCM / local-notification payload keys across Android and iOS.
@@ -22,8 +24,18 @@ Map<String, String> extractPushPayload(Map<String, dynamic> raw) {
 
   String? pick(List<String> keys) {
     for (final key in keys) {
-      final value = flat[key]?.trim();
-      if (value != null && value.isNotEmpty) return value;
+      final direct = flat[key]?.trim();
+      if (direct != null && direct.isNotEmpty) return direct;
+    }
+    // Case-insensitive fallback (some iOS builds vary key casing).
+    for (final entry in flat.entries) {
+      final lower = entry.key.toLowerCase();
+      for (final key in keys) {
+        if (lower == key.toLowerCase()) {
+          final value = entry.value.trim();
+          if (value.isNotEmpty) return value;
+        }
+      }
     }
     return null;
   }
@@ -31,12 +43,14 @@ Map<String, String> extractPushPayload(Map<String, dynamic> raw) {
   final deliveryId = pick([
     'delivery_id',
     'deliveryId',
+    'delivery-id',
     'gcm.notification.delivery_id',
     'google.c.a.c_l',
   ]);
   final slug = pick([
     'integration_slug',
     'integrationSlug',
+    'integration-slug',
     'gcm.notification.integration_slug',
   ]);
 
@@ -47,5 +61,18 @@ Map<String, String> extractPushPayload(Map<String, dynamic> raw) {
 }
 
 Map<String, String> extractPushPayloadFromMessage(RemoteMessage message) {
-  return extractPushPayload(Map<String, dynamic>.from(message.data));
+  final merged = <String, dynamic>{...message.data};
+
+  // iOS may nest custom fields under a JSON "data" string.
+  final nested = message.data['data'];
+  if (nested is String && nested.trim().startsWith('{')) {
+    try {
+      final decoded = jsonDecode(nested);
+      if (decoded is Map) {
+        merged.addAll(Map<String, dynamic>.from(decoded));
+      }
+    } catch (_) {}
+  }
+
+  return extractPushPayload(merged);
 }

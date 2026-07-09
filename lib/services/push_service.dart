@@ -92,7 +92,7 @@ class PushService {
     try {
       await _api.registerDevice(
         fcmToken: token,
-        platform: defaultTargetPlatform.name,
+        platform: defaultTargetPlatform.name.toLowerCase(),
       );
     } catch (e) {
       debugPrint('FCM token register failed: $e');
@@ -141,6 +141,9 @@ class PushService {
   }
 
   Future<void> _showForegroundNotification(RemoteMessage message) async {
+    // iOS already shows a system banner via setForegroundNotificationPresentationOptions.
+    if (defaultTargetPlatform == TargetPlatform.iOS) return;
+
     final notification = message.notification;
     final title = notification?.title ?? 'NotiMe';
     final body = notification?.body ?? '';
@@ -175,8 +178,10 @@ class PushService {
 
   Future<void> _handleRemoteTap(RemoteMessage message) async {
     final data = extractPushPayloadFromMessage(message);
-    if (data.isEmpty) {
-      debugPrint('FCM tap: empty payload (data=${message.data})');
+    if (data['delivery_id'] == null || data['delivery_id']!.isEmpty) {
+      debugPrint(
+        'FCM tap: missing delivery_id — data=${message.data} merged=$data',
+      );
     }
     await _dispatchTap(data);
   }

@@ -37,17 +37,24 @@ class _PastePairingUrlDialogState extends State<PastePairingUrlDialog> {
 
   void _submit() {
     final text = _controller.text.trim();
-    if (parsePairingPayload(text) == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Enter a valid pairing URL from heynotime.com (Dashboard → My Users).',
-          ),
-        ),
-      );
+    if (parsePairingPayload(text) != null) {
+      Navigator.of(context).pop(text);
       return;
     }
-    Navigator.of(context).pop(text);
+    final connectSlug = parseConnectSlug(text);
+    if (connectSlug != null) {
+      Navigator.of(context).pop('connect:$connectSlug');
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Paste a pairing URL from Dashboard → My Users '
+          '(https://heynotime.com/your-slug/your-token/) '
+          'or a connect link (https://heynotime.com/connect/your-slug/).',
+        ),
+      ),
+    );
   }
 
   @override

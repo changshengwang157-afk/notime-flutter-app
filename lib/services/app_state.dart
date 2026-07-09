@@ -165,7 +165,13 @@ class AppState extends ChangeNotifier {
       return await _completePairResult(result);
     } on NotiMeApiException catch (e) {
       _error = e.message;
-      if (e.statusCode == 403 || e.statusCode == 404) {
+      if (e.statusCode == 403) {
+        _error =
+            'Continue without QR is disabled for this app. '
+            'Use Paste pairing URL with the link from Dashboard → My Users.';
+        return LoginResult.networkError;
+      }
+      if (e.statusCode == 404) {
         return LoginResult.invalidQr;
       }
       if (e.statusCode == 429) {
@@ -194,6 +200,8 @@ class AppState extends ChangeNotifier {
     _connectedApps.clear();
     _connectedApps.add(result.integration);
     _selectedAppId = result.integration.id;
+    _notificationsByApp.clear();
+    _history = [];
     _lastSuccessMessage = result.message;
     await refreshFromApi();
     await _push.registerDevice();
@@ -271,8 +279,14 @@ class AppState extends ChangeNotifier {
     required Future<void> Function(String slug) onConnectSlug,
   }) {
     _deepLinks.listen(
-      onPairingUrl: (payload) => unawaited(onPairingUrl(payload)),
-      onConnectSlug: (slug) => unawaited(onConnectSlug(slug)),
+      onPairingUrl: (payload) => unawaited(() async {
+        await ready;
+        await onPairingUrl(payload);
+      }()),
+      onConnectSlug: (slug) => unawaited(() async {
+        await ready;
+        await onConnectSlug(slug);
+      }()),
     );
   }
 
@@ -309,60 +323,47 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _openNotificationFromPush(Map<String, String> data) async {
-    final deliveryId = data['delivery_id']?.trim();
+    var deliveryId = data['delivery_id']?.trim();
     final slug = data['integration_slug']?.trim();
 
     if (slug != null && slug.isNotEmpty) {
       _selectedAppId = slug;
     }
 
+    await refreshFromApi();
+
     if (deliveryId == null || deliveryId.isEmpty) {
       debugPrint('Push tap: missing delivery_id — data=$data');
-      await refreshFromApi();
-      if (slug != null && slug.isNotEmpty) {
-        _navigateFromPush('/home/$slug');
+      final latest = notificationsForSelectedApp();
+      if (latest.isNotEmpty) {
+        deliveryId = latest.first.id;
+        debugPrint('Push tap: falling back to latest inbox id=$deliveryId');
+      } else {
+        if (slug != null && slug.isNotEmpty) {
+          _navigateFromPush('/home/$slug');
+        }
+        return;
       }
-      return;
     }
 
-    // Refresh inbox and load the tapped notification before navigating.
-    await _loadPushTarget(deliveryId);
+    try {
+      await fetchAndCacheNotification(deliveryId);
+    } catch (e) {
+      debugPrint('Push tap detail load failed: $e');
+    }
     notifyListeners();
     _navigateFromPush('/notification/$deliveryId', usePush: true);
   }
 
-  Future<void> _loadPushTarget(String deliveryId) async {
-    try {
-      await Future.wait([
-        refreshFromApi(),
-        fetchAndCacheNotification(deliveryId),
-      ]);
-    } catch (e) {
-      debugPrint('Push tap parallel load failed: $e — retrying detail only');
-      try {
-        await fetchAndCacheNotification(deliveryId);
-      } catch (e2) {
-        debugPrint('Push tap detail load failed: $e2');
-      }
-      try {
-        await refreshFromApi();
-      } catch (_) {}
-    }
-  }
-
   void _navigateFromPush(String location, {bool usePush = false}) {
     final navigate = _onPushNavigate;
-    if (navigate == null) return;
-
-    void runNavigation() {
-      navigate(location, usePush: usePush);
+    if (navigate == null) {
+      debugPrint('Push navigation skipped: handler not ready ($location)');
+      return;
     }
 
-    // Two frames + short delay: reliable on iOS cold start when router is settling.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Future<void>.delayed(const Duration(milliseconds: 150), runNavigation);
-      });
+      navigate(location, usePush: usePush);
     });
   }
 

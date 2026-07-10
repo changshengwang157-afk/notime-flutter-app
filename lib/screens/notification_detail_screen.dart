@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../config/api_config.dart';
 import '../core/notime_branding.dart';
 import '../core/theme/notime_theme.dart';
 import '../models/notification_item.dart';
@@ -66,14 +68,20 @@ class _NotificationDetailScreenState extends State<NotificationDetailScreen> {
 
     if (_loading) {
       return NotiMePage(
-        appBar: AppBar(title: Text('Notification')),
-        body: Center(child: CircularProgressIndicator()),
+        appBar: AppBar(
+          title: const Text('Notification'),
+          leading: _backButton(context, state),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     if (item == null) {
       return NotiMePage(
-        appBar: AppBar(title: const Text('Notification')),
+        appBar: AppBar(
+          title: const Text('Notification'),
+          leading: _backButton(context, state),
+        ),
         body: Center(
           child: Text(_loadError ?? 'Notification not found.'),
         ),
@@ -86,6 +94,7 @@ class _NotificationDetailScreenState extends State<NotificationDetailScreen> {
       appBar: AppBar(
         title: const Text('Notification'),
         centerTitle: true,
+        leading: _backButton(context, state),
         actions: [
           IconButton(
             icon: const Icon(Icons.help_outline),
@@ -160,6 +169,21 @@ class _NotificationDetailScreenState extends State<NotificationDetailScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  /// Push taps use `go('/notification/:id')`, so the stack may be empty.
+  Widget _backButton(BuildContext context, AppState state) {
+    return IconButton(
+      icon: const Icon(Icons.arrow_back),
+      onPressed: () {
+        if (context.canPop()) {
+          context.pop();
+          return;
+        }
+        final slug = state.selectedApp?.id ?? ApiConfig.fallbackConnectSlug;
+        context.go('/home/$slug');
+      },
     );
   }
 

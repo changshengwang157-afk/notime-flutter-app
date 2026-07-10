@@ -68,25 +68,19 @@ class _NotiMeAppState extends State<NotiMeApp> {
     super.dispose();
   }
 
-  /// Reliable navigation when user taps a push notification.
+  /// Opens notification detail from a push tap (Android + iOS).
+  ///
+  /// Important: do **not** bounce through `/home` first. That race with
+  /// GoRouter's `refreshListenable` left users stuck on the main screen.
   Future<void> _navigateFromPushTap(
     String location, {
     bool usePush = false,
   }) async {
+    await _appState.ready;
+
     if (!location.startsWith('/notification/')) {
       _router.go(location);
       return;
-    }
-
-    final slug = _appState.selectedApp?.id ?? ApiConfig.fallbackConnectSlug;
-    final home = '/home/$slug';
-
-    // Let session restore + router redirect settle (cold start from killed state).
-    await Future<void>.delayed(const Duration(milliseconds: 200));
-
-    if (_appState.isLoggedIn && _router.state.matchedLocation != home) {
-      _router.go(home);
-      await Future<void>.delayed(const Duration(milliseconds: 100));
     }
 
     if (!_appState.isLoggedIn) {
@@ -98,11 +92,10 @@ class _NotiMeAppState extends State<NotiMeApp> {
       return;
     }
 
-    if (usePush) {
-      _router.push(location);
-    } else {
-      _router.go(location);
-    }
+    // Direct go is reliable on cold start and background resume.
+    // Detail screen handles "back" → home when the stack is empty.
+    // [usePush] is kept for API compatibility with AppState callbacks.
+    _router.go(location);
   }
 
   @override

@@ -330,29 +330,41 @@ class AppState extends ChangeNotifier {
       _selectedAppId = slug;
     }
 
-    await refreshFromApi();
-
     if (deliveryId == null || deliveryId.isEmpty) {
       debugPrint('Push tap: missing delivery_id — data=$data');
+      // Only hit the network for a fallback id when the payload omitted it.
+      try {
+        await refreshFromApi();
+      } catch (e) {
+        debugPrint('Push tap inbox refresh failed: $e');
+      }
       final latest = notificationsForSelectedApp();
       if (latest.isNotEmpty) {
         deliveryId = latest.first.id;
         debugPrint('Push tap: falling back to latest inbox id=$deliveryId');
       } else {
-        if (slug != null && slug.isNotEmpty) {
-          _navigateFromPush('/home/$slug');
+        final homeSlug = slug ?? selectedApp?.id;
+        if (homeSlug != null && homeSlug.isNotEmpty) {
+          _navigateFromPush('/home/$homeSlug');
         }
         return;
       }
     }
 
+    // Prefetch detail so the screen has content; do not refresh the whole
+    // inbox first — that notifyListeners race used to cancel detail navigation.
     try {
       await fetchAndCacheNotification(deliveryId);
     } catch (e) {
       debugPrint('Push tap detail load failed: $e');
     }
-    notifyListeners();
-    _navigateFromPush('/notification/$deliveryId', usePush: true);
+
+    _navigateFromPush('/notification/$deliveryId');
+
+    // Refresh inbox in the background after navigation is scheduled.
+    unawaited(refreshFromApi().catchError((Object e) {
+      debugPrint('Push tap background refresh failed: $e');
+    }));
   }
 
   void _navigateFromPush(String location, {bool usePush = false}) {
@@ -362,8 +374,11 @@ class AppState extends ChangeNotifier {
       return;
     }
 
+    // Run after the current frame so we are not mid-GoRouter refresh.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      navigate(location, usePush: usePush);
+      unawaited(Future<void>(() async {
+        navigate(location, usePush: usePush);
+      }));
     });
   }
 

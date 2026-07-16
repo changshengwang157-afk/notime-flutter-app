@@ -99,13 +99,44 @@ class PushService {
     }
   }
 
-  Future<void> processInitialMessage() async {
+  /// Handles the notification that launched the app (killed → tap).
+  ///
+  /// Prefers [earlyMessage] captured in `main()` before UI starts so cold-start
+  /// taps (Android killed state / iOS lock-screen + passcode) keep `delivery_id`.
+  Future<void> processInitialMessage({RemoteMessage? earlyMessage}) async {
     if (!_configured) return;
     try {
-      final message = await FirebaseMessaging.instance.getInitialMessage();
-      if (message != null) {
-        await _handleRemoteTap(message);
+      var message = earlyMessage;
+      message ??= await FirebaseMessaging.instance.getInitialMessage();
+
+      // Cold start can race the OS unlock / activity recreate on both platforms.
+      if (message == null) {
+        for (var attempt = 0; attempt < 5 && message == null; attempt++) {
+          await Future<void>.delayed(const Duration(milliseconds: 300));
+          message = await FirebaseMessaging.instance.getInitialMessage();
+        }
       }
+
+      if (message != null) {
+        debugPrint(
+          'FCM processInitialMessage: id=${message.messageId} data=${message.data}',
+        );
+        await _handleRemoteTap(message);
+        return;
+      }
+
+      // Android foreground banners use local notifications — also check that path.
+      final launch = await _localNotifications.getNotificationAppLaunchDetails();
+      final payload = launch?.notificationResponse?.payload;
+      if (launch?.didNotificationLaunchApp == true &&
+          payload != null &&
+          payload.isNotEmpty) {
+        debugPrint('Local notification launched app: $payload');
+        _handlePayloadTap(payload);
+        return;
+      }
+
+      debugPrint('FCM processInitialMessage: no launch notification');
     } catch (e) {
       debugPrint('FCM initial message: $e');
     }

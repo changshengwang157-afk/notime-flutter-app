@@ -4,27 +4,17 @@ import 'package:flutter/material.dart';
 
 import 'app/notime_app.dart';
 import 'firebase_background.dart';
-import 'services/pending_push_launch.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
+  // Never block runApp on push/FCM — a slow or missing Firebase config on iOS
+  // TestFlight was leaving users on a blank white launch screen.
   try {
-    await Firebase.initializeApp();
-    // Read ASAP — before AppState / router / session restore delays.
-    // Critical for cold-start taps on Android (killed) and iOS (lock + passcode).
-    pendingLaunchPushMessage =
-        await FirebaseMessaging.instance.getInitialMessage();
-    if (pendingLaunchPushMessage != null) {
-      debugPrint(
-        'FCM cold-start tap captured early: '
-        'id=${pendingLaunchPushMessage!.messageId} '
-        'data=${pendingLaunchPushMessage!.data}',
-      );
-    }
+    await Firebase.initializeApp().timeout(const Duration(seconds: 5));
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   } catch (e) {
-    debugPrint('Firebase init / initial message: $e');
+    debugPrint('Firebase init skipped: $e');
   }
 
   runApp(const NotiMeApp());

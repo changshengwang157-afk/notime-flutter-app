@@ -12,7 +12,6 @@ import '../models/sent_notification.dart';
 import '../models/user_session.dart';
 import 'device_install_id.dart';
 import 'deep_link_service.dart';
-import 'pending_push_launch.dart';
 import 'push_service.dart';
 import 'session_storage.dart';
 
@@ -270,8 +269,7 @@ class AppState extends ChangeNotifier {
     await ready;
     // Let GoRouter finish its first redirect (e.g. / → /home) before cold-start tap.
     await Future<void>.delayed(const Duration(milliseconds: 400));
-    await _push.processInitialMessage(earlyMessage: pendingLaunchPushMessage);
-    pendingLaunchPushMessage = null;
+    await _push.processInitialMessage();
     await _processPendingPush();
   }
 

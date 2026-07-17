@@ -40,7 +40,9 @@ class PushService {
     if (_configured) return;
     _onTap = onTap;
     try {
-      await Firebase.initializeApp();
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp();
+      }
       await _setupLocalNotifications();
 
       final messaging = FirebaseMessaging.instance;
@@ -107,13 +109,17 @@ class PushService {
     if (!_configured) return;
     try {
       var message = earlyMessage;
-      message ??= await FirebaseMessaging.instance.getInitialMessage();
+      message ??= await FirebaseMessaging.instance
+          .getInitialMessage()
+          .timeout(const Duration(seconds: 3), onTimeout: () => null);
 
       // Cold start can race the OS unlock / activity recreate on both platforms.
       if (message == null) {
         for (var attempt = 0; attempt < 5 && message == null; attempt++) {
           await Future<void>.delayed(const Duration(milliseconds: 300));
-          message = await FirebaseMessaging.instance.getInitialMessage();
+          message = await FirebaseMessaging.instance
+              .getInitialMessage()
+              .timeout(const Duration(seconds: 2), onTimeout: () => null);
         }
       }
 

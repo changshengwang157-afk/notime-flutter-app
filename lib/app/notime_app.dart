@@ -117,8 +117,14 @@ class _NotiMeAppState extends State<NotiMeApp> {
                 scaffoldMessengerKey: appMessengerKey,
                 routerConfig: _router,
                 builder: (context, child) {
-                  // No DEBUG/Demo ribbon on debug builds.
-                  return child ?? const SizedBox.shrink();
+                  // GoRouter can briefly pass null during redirects — never show
+                  // an empty white screen on cold start (seen on iOS TestFlight).
+                  if (child == null) {
+                    return const Scaffold(
+                      body: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  return child;
                 },
               );
             },
